@@ -1,0 +1,5 @@
+tests/testset1/*
+tests/testset2/*
+src/*.o
+matrix_multiplierV*
+tests/results/*
