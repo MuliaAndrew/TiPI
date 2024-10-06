@@ -82,7 +82,9 @@ def analyzeNumOfThreadsSpeed(version: int):
     
     x = range(1, 17)
 
-    plt.plot(x, y)
+    plt.plot(x, y, "sk")
+    plt.xlabel("number of threads")
+    plt.ylabel("msecё")
 
     plt.savefig(fname = "tests/results/Version%d_time_nthreads_dependency.png" % version)
 
@@ -112,7 +114,9 @@ def analyzeSizeOfMatrixSpeed(version: int):
     y = msize_avg_times
     x = range(512, 4097, 512)
 
-    plt.plot(x, y)
+    plt.plot(x, y, "sk")
+    plt.xlabel("size of matrix in bytes")
+    plt.ylabel("msec")
 
     plt.savefig(fname = "tests/results/Version%d_time_msize_dependency.png" % version)
 

@@ -1,0 +1,19 @@
+digraph G {
+    fontname="Helvetica,Arial,sans-serif"
+    node [fontname="Helvetica,Arial,sans-serif"]
+    edge [fontname="Helvetica,Arial,sans-serif"]
+    concentrate=True;
+    rankdir=TB;
+    node [shape=record];
+
+    start [label="{-1|{10|20|30}|{<f0> n00|<f10> n10|<f20> n20|<f30> n30}}"]
+    n00 [label="{n00|{0|5|8}}"]
+    n10 [label="{n10|{10|15}}"]
+    n20 [label="{n20|{20|25}}"]
+    n30 [label="{n30|{30|35}}"]
+
+    start:f0  -> n00
+    start:f10 -> n10
+    start:f20 -> n20
+    start:f30 -> n30
+}

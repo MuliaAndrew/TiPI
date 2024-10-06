@@ -41,5 +41,4 @@ void multForThread(QMatrix* A, QMatrix* B, QMatrix* C, size_t start, size_t end)
             }
         }
     }
-    
 }
