@@ -1,33 +1,47 @@
 #ifndef TREE_H
 #define TREE_H
 
-#include "node.h"
-#include "value.h"
+#include <unordered_map>
+#include <string>
+#include <mutex>
 
-struct BLinkTree {
-    BTNode* root;
-    int f; /// file descriptor
+extern "C" {
+    #include "node.h"
+}
+
+typedef pthread_rwlock_t Lock;
+typedef std::unordered_map<Offset, Lock*> Lockmap;
+
+class BLinkTree {
+        Offset root;
+        
+        BTNode* current = nullptr;
+        BTNode* tmp1 = nullptr, *tmp2 = nullptr;
+
+        int fd; // file descriptor
+
+        static std::mutex lockmap_mut;
+        static Lockmap lockmap;
+
+    public:
+        BLinkTree() = delete;
+        BLinkTree(BLinkTree&&) = delete;
+        BLinkTree(const BLinkTree&);
+        BLinkTree(std::string fname);
+
+        ~BLinkTree();
+
+        Value read(Key key);
+
+        void write(Key key, Value* value);
+    
+    private:
+        Lock* getNodeRWLock(Offset offset);
+
+        BTNode* readNode(Offset offset);
+
+        void writeNode();
+        ///TODO
 };
-
-typedef struct BLinkTree BLinkTree;
-
-BLinkTree* initBLinkTree(char* fname);
-
-deleteBLinkTree(BLinkTree* tree);
-
-void BLinkTreeWrite(BLinkTree* tree, Key key, Value* value);
-
-// if key was not found, return 1 and set buff to nullptr, otherwise return 0
-// buff: buffer where value under key will be writen
-bool BLinkTreeRead(BLinkTree* tree, Key key, Value* buff);
-
-// if `key` was not found, return 1, otherwise delete the key and related data and return 0
-bool BLinkTreeDelete(BLinkTree* tree, Key key);
-
-void BLinkTreeSerialize(BLinkTree* tree, char* fname);
-
-BLinkTree* BLinkTreeDeserialize(char* fname);
-
-void BLinkTreeDot(BLinkTree* tree, char* fname);
 
 #endif // TREE_H

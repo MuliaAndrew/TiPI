@@ -4,8 +4,7 @@
 #include "string.h"
 
 struct __attribute__((__packed__)) Value {
-    size_t size;
-    char* data;
+    char data[16];
 };
 
 typedef struct Value Value;

@@ -46,7 +46,7 @@ void gen_dot(BLinkTree* tree) {
         auto from = queue.front();
         queue.pop_front();
         auto sz = from->buff_size;
-        if (!btnodeFlag(from, IS_LEAF)) {
+        if (!btnodeFlag(from, LEAF_NODE)) {
             for (int i = 0; i < sz; i++) {
                 auto to = from->node_buff[i];
                 if (to != NULL) {
@@ -70,7 +70,7 @@ void gen_node(BTNode* node) {
             dot_tmp << "|";
         dot_tmp << node->key_buff[i];
     }
-    if (!btnodeFlag(node, IS_LEAF)) {
+    if (!btnodeFlag(node, LEAF_NODE)) {
         dot_tmp << "}|{";
         for (int i = 0; i < node->buff_size; i++) {
             if (i != 0)
