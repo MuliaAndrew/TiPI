@@ -13,11 +13,10 @@ typedef pthread_rwlock_t Lock;
 typedef std::unordered_map<Offset, Lock*> Lockmap;
 
 class BLinkTree {
-        Offset root;
-        
         BTNode* current = nullptr;
         BTNode* tmp1 = nullptr, *tmp2 = nullptr;
 
+        std::string fname;
         int fd; // file descriptor
 
         static std::mutex lockmap_mut;
@@ -27,13 +26,17 @@ class BLinkTree {
         BLinkTree() = delete;
         BLinkTree(BLinkTree&&) = delete;
         BLinkTree(const BLinkTree&);
-        BLinkTree(std::string fname);
+        BLinkTree(std::string file_name);
 
         ~BLinkTree();
 
         Value read(Key key);
 
         void write(Key key, Value* value);
+
+        bool erase(Key key);
+
+        static void createEmptyServiceFile(std::string fname);
     
     private:
         Lock* getNodeRWLock(Offset offset);
@@ -41,7 +44,8 @@ class BLinkTree {
         BTNode* readNode(Offset offset);
 
         void writeNode();
-        ///TODO
+        
+        // TODO: Split, Rebalance, Merge
 };
 
 #endif // TREE_H

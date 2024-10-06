@@ -31,12 +31,20 @@ std::mutex BLinkTree::lockmap_mut{};
 Lockmap BLinkTree::lockmap{};
 
 // каждый тред имеет свой дескриптор 
-BLinkTree::BLinkTree(std::string fname) {
+BLinkTree::BLinkTree(std::string file_name) {
+    tmp1 = tmp2 = nullptr;
+
+    fname = file_name;
     fd = open(fname.c_str(), O_RDWR || O_CREAT || O_SYNC, S_IRUSR || S_IWUSR);
+
+    current = readNode(ROOT_OFFSET);
 }
 
 BLinkTree::BLinkTree(const BLinkTree&) {
     tmp1 = tmp2 = nullptr;
+
+    fd = open(fname.c_str(), O_RDWR || O_CREAT || O_SYNC, S_IRUSR || S_IWUSR);
+
     current = readNode(ROOT_OFFSET);
 }
 
@@ -160,4 +168,42 @@ Lock* BLinkTree::getNodeRWLock(Offset offset) {
     }
     lockmap_mut.unlock();
     return lock;
+}
+
+Value BLinkTree::read(Key key) {
+    auto lock = getNodeRWLock(ROOT_OFFSET);
+    Lock* prev = nullptr;
+    
+    pthread_rwlock_rdlock(lock);
+    if (current == nullptr || current->self != ROOT_OFFSET) {
+        current = readNode(ROOT_OFFSET);
+    }
+
+    while (!btnodeFlag(current, LEAF_NODE)) {
+        auto offset = btnodeChildByKey(current, key);
+        if (offset == INVALID_OFFSET) {
+            if (current->right) 
+                offset = current->right;
+            else {
+                std::cout << "[ERR " << getpid() 
+                    << "] Bad read obtained offset or pointer to righthand node\n";
+                return {};
+            }
+        }
+        prev = lock;
+        lock = getNodeRWLock(offset);
+        
+        delete current;
+
+        // Firstly lock child node, only after unlock the current node
+        pthread_rwlock_rdlock(lock);
+        pthread_rwlock_unlock(prev);
+
+        current = readNode(offset);
+    }
+
+    auto res = btnodeValueByKey(current, key);
+    delete current;
+    pthread_rwlock_unlock(lock);
+    return res;
 }
