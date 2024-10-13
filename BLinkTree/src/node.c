@@ -6,7 +6,7 @@ bool btnodeFlag(BTNode* node, BTFlags flag) {
 
 Offset btnodeChildByKey(BTNode* node, Key key) {
     if (btnodeFlag(node, LEAF_NODE))
-        return NULL;
+        return INVALID_OFFSET;
 
     size_t right = node->key_buff_size;
     size_t left = 0;
@@ -69,17 +69,11 @@ Value btnodeValueByKey(BTNode* node, Key key) {
         else return node->value_buff[mid];
     }
 
-    return;
+    Value v;
+    return v;
 }
 
-BTNode* btnodeInit(Offset parent, BTFlags flags) {
-    BTNode* node = (BTNode*)malloc(sizeof(BTNode));
-    node->flag = flags;
-
-    node->key_buff_size = 0;
-
-    node->buff_size = 0;
+void btnodeAddKeyValue(BTNode* node, Key key, Value* val) {
+    size_t sz = node->key_buff_size;
     
-    node->parent = parent;
-    node->high_key = 0;
 }

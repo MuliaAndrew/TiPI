@@ -1,0 +1,2 @@
+| root_offset | next_available_node_space| 00..00 | [ nodes ]
+0             8                         16       100
