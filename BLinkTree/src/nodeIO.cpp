@@ -1,4 +1,7 @@
 #include "nodeIO.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+
 
 std::mutex NodeIO::mut_free_space{};
 std::shared_mutex NodeIO::mut_root{};
@@ -99,21 +102,22 @@ void NodeIO::createEmptyServiceFile(std::string& fname) {
     const Offset INITIAL_ROOT_OFFSET = 100;
     const Offset INITIAL_FREE_SPACE_OFFSET = INITIAL_ROOT_OFFSET + NODE_SIZE;
 
-    int fd = open(fname.c_str(), O_CREAT || O_RDWR || O_SYNC, S_IWUSR || S_IRUSR);
+    errno = 0;
+
+    int fd = open(fname.c_str(), O_CREAT|O_RDWR|O_TRUNC, 0644);
 
     char buff[NODE_SIZE];
 
-    if (::write(fd, &INITIAL_ROOT_OFFSET, sizeof(Offset) != sizeof(Offset) || errno)) {
-        std::cout << "[ERR " << getpid() << "] Bad new tree write\n";
+    if (::write(fd, &INITIAL_ROOT_OFFSET, sizeof(Offset)) != sizeof(Offset) || errno) {
+        std::cout << "[ERR " << getpid() << "] Bad new tree 1 write\n";
+        perror("WTF");
         exit(1); 
     }
-    if (::pwrite(fd, &INITIAL_FREE_SPACE_OFFSET, sizeof(Offset), 8u) != sizeof(Offset) || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad new tree write\n";
+    if (::pwrite(fd, &INITIAL_FREE_SPACE_OFFSET, sizeof(Offset), 8ul) != sizeof(Offset) || errno) {
+        std::cout << "[ERR " << getpid() << "] Bad new tree 2 write\n";
         exit(1); 
     }
-
-    size_t t_offset = 0;
-    member_val(Offset, buff, t_offset) = INVALID_OFFSET;
+    size_t t_offset;
 
     t_offset = offset_of(BTNode, self);
     member_val(Offset, buff, t_offset) = INITIAL_ROOT_OFFSET;
@@ -132,7 +136,7 @@ void NodeIO::createEmptyServiceFile(std::string& fname) {
     member_val(Key, buff, t_offset) = 0;
 
     t_offset = offset_of(BTNode, flag);
-    member_val(int, buff, t_offset) = ROOT_NODE || LEAF_NODE;
+    member_val(int, buff, t_offset) = ROOT_NODE | LEAF_NODE;
 
     t_offset = offset_of(BTNode, buff_size);
     member_val(size_t, buff, t_offset) = 0;
@@ -146,7 +150,7 @@ void NodeIO::createEmptyServiceFile(std::string& fname) {
         exit(1);
     }
     if (::write(fd, buff, NODE_SIZE) != NODE_SIZE || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad new tree write\n";
+        std::cout << "[ERR " << getpid() << "] Bad new tree 3 write\n";
         exit(1); 
     }
 
@@ -194,12 +198,12 @@ Offset NodeIO::addNode(BTNode* node) {
 
 NodeIO::NodeIO(const std::string& file_name) {
     fname = file_name;
-    fd = open(fname.c_str(), O_CREAT || O_RDWR || O_SYNC, S_IWUSR || S_IRUSR);
+    fd = open(fname.c_str(), O_RDWR | O_SYNC);
 }
 
 NodeIO::NodeIO(const NodeIO& other) {
     fname = other.fname;
-    fd = open(fname.c_str(), O_CREAT || O_RDWR || O_SYNC, S_IWUSR || S_IRUSR);
+    fd = open(fname.c_str(), O_RDWR | O_SYNC);
 }
 
 NodeIO::~NodeIO() {
@@ -210,6 +214,6 @@ NodeIO& NodeIO::operator= (const NodeIO& other) {
     NodeIO tmp(other);
     std::swap(fname, tmp.fname);
 
-    fd = open(fname.c_str(), O_CREAT || O_RDWR || O_SYNC, S_IWUSR || S_IRUSR);
+    fd = open(fname.c_str(), O_RDWR | O_SYNC);
     return *this;
 }

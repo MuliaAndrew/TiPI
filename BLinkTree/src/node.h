@@ -5,6 +5,7 @@
 #include "stdbool.h"
 #include "value.h"
 #include "stdlib.h"
+#include "stdio.h"
 
 #ifndef L
     #define L 64
@@ -17,9 +18,9 @@
 enum BTFlags {
     ROOT_NODE = 0x0002,
     LEAF_NODE = 0x0001,
-    INTERNAL_NODE = 0x0000,
-    // NEED_TO_MERGE = 0x0004,
-    // NEED_TO_SPLIT = 0x0008
+    INTERNAL_NODE = 0x0004,
+    // NEED_TO_MERGE = 0x0008,
+    // NEED_TO_SPLIT = 0x0010
 };
 typedef enum BTFlags BTFlags;
 
@@ -30,15 +31,15 @@ typedef size_t Offset; // offset of BTNode in b link tree storage file
 struct __attribute__((__packed__)) BTNode {
     Offset self;
     
-    size_t key_buff_size;
-    Key key_buff[2 * L];
-
     Offset right;
     Key high_key;
 
     int flag;
 
     size_t buff_size;
+    size_t key_buff_size;
+
+    Key key_buff[2 * L];
     union {
         Offset node_buff[2 * L + 1];
         Value value_buff[2 * L];
