@@ -56,8 +56,6 @@ void btnodeAddKeyValue(BTNode* node, Key key, Value* val) {
 
     size_t res = fgoe(node, key);
 
-    printf("mid2: %lu\n", res);
-
     if (node->key_buff[res] != key || res == sz) {
         size_t check1 = node->buff_size; 
 
@@ -101,6 +99,8 @@ BTNode* btnodeSplit(BTNode* node, Offset other) {
 
     new_right->key_buff_size = sz - mid;
     new_right->buff_size = sz - mid + pref;
+    
+    new_right->right = INVALID_OFFSET;
 
     node->right = other;
     node->high_key = node->key_buff[mid];

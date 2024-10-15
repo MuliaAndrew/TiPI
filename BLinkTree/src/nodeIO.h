@@ -63,8 +63,7 @@ class NodeIO {
 
         // add space for new node in service file. 
         // do not write it, so write must be call mannualy on this node. 
-        // sets `node->self` and returned it
-        Offset addNode(BTNode* node);
+        Offset addNode();
 
         static void createEmptyServiceFile(std::string& fname);
         

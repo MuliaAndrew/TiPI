@@ -18,7 +18,7 @@ BTNode* NodeIO::readNode(Offset offset) {
         exit(1);
     }
 
-    auto node = new BTNode;
+    auto node = (BTNode*)malloc(sizeof(BTNode));
 
     size_t t_offset = offset_of(BTNode, self);
     node->self = member_val(Offset, buff, t_offset);
@@ -104,7 +104,7 @@ void NodeIO::createEmptyServiceFile(std::string& fname) {
 
     errno = 0;
 
-    int fd = open(fname.c_str(), O_CREAT|O_RDWR|O_TRUNC, 0644);
+    int fd = open(fname.c_str(), O_CREAT | O_RDWR | O_TRUNC, 0644);
 
     char buff[NODE_SIZE];
 
@@ -178,14 +178,13 @@ Offset NodeIO::getRootOffset() {
     return root;
 }
 
-Offset NodeIO::addNode(BTNode* node) {
+Offset NodeIO::addNode() {
     mut_free_space.lock();
     Offset new_node_offset;
     if (pread(fd, &new_node_offset, sizeof(Offset), 8) != sizeof(Offset) || errno) {
         std::cout << "[ERR " << getpid() << "] bad addNode read\n";
         exit(1);
     }
-    node->self = new_node_offset;
     new_node_offset += NODE_SIZE;
     if (pwrite(fd, &new_node_offset, sizeof(Offset), 8) != sizeof(Offset) || errno) {
         std::cout << "[ERR " << getpid() << "] bad addNode write\n";
@@ -193,7 +192,7 @@ Offset NodeIO::addNode(BTNode* node) {
     }
     mut_free_space.unlock();
 
-    return new_node_offset;
+    return new_node_offset - NODE_SIZE;
 }
 
 NodeIO::NodeIO(const std::string& file_name) {
