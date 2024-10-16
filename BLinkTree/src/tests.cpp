@@ -1,6 +1,8 @@
 #include "tree.h"
 #include <gtest/gtest.h>
 
+// Тесты проверены для L=64 и L=16
+
 TEST(NodeIO, NodeConstruction) {
     std::string fname = "serviceF";
     NodeIO::createEmptyServiceFile(fname);
@@ -82,6 +84,45 @@ TEST(BTNode, AddKeyValue) {
     btnodeAddKeyValue(root, 4, &v2);
 
     EXPECT_STREQ(root->value_buff[0].data, v2.data);
+
+    free(root);
+}
+
+TEST(BTNode, Search) {
+    std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
+
+    auto node_io = NodeIO(fname);
+    auto root_offset = node_io.getRootOffset();
+    EXPECT_EQ(root_offset, 100u) << "Bad creation of service file: false root offset";
+
+    auto root = node_io.readNode(root_offset);
+    EXPECT_EQ(root->flag, ROOT_NODE | LEAF_NODE)  << "Bad node state";
+
+    Value v1, v2, v3; 
+    strncpy(v1.data, "abvgd", 6);
+
+    for (int i = 1; root->key_buff_size < 5; i++) {
+        btnodeAddKeyValue(root, i * 12 - 11, &v1);
+    }
+    for (int i = 1; root->key_buff_size < 10; i++) {
+        btnodeAddKeyValue(root, 1000 - i * 10, &v2);
+    }
+    for (int i = 1; root->key_buff_size < 15; i++) {
+        btnodeAddKeyValue(root, i * 6 + 100, &v3);
+    }
+
+    Value ret1 = btnodeValueByKey(root, 49);
+    Value ret2 = btnodeValueByKey(root, 950);
+    Value ret3 = btnodeValueByKey(root, 106);
+    Value false_ret = btnodeValueByKey(root, 2);
+
+    EXPECT_STREQ(v1.data, ret1.data);
+    EXPECT_STREQ(v2.data, ret2.data);
+    EXPECT_STREQ(v3.data, ret3.data);
+    EXPECT_STRNE(v1.data, false_ret.data);
+    EXPECT_STRNE(v2.data, false_ret.data);
+    EXPECT_STRNE(v3.data, false_ret.data);
 
     free(root);
 }
@@ -185,11 +226,135 @@ TEST(NodeIO, NodeAdd) {
     free(right);
 }
 
+TEST(BLinkSingleThread, SimpleRead) {
+     std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
 
-TEST(BLinkSingleThread, Read) {
+    BLinkTree tree{fname};
 
+    Value v[3];
+    strcpy(v[0].data, "aaa");
+    strcpy(v[1].data, "bbb");
+    strcpy(v[2].data, "ccc");
+
+    auto node_io = NodeIO(fname);
+    auto root_offset = node_io.getRootOffset();
+    EXPECT_EQ(root_offset, 100u) << "Bad creation of service file: false root offset";
+
+    for (int i = 1; i < 2 * L; i++) {
+        tree.write(i, &v[i % 3]);
+    }
+    auto root = node_io.readNode(root_offset);
+    EXPECT_EQ(root->buff_size, 2 * L - 1);
+    free(root);
+
+    auto v1 = tree.read(30);
+    auto v2 = tree.read(5);
+    auto v3 = tree.read(1);
+    auto v_bad1 = tree.read(0);
+    auto v_bad2 = tree.read(222);
+
+    EXPECT_STREQ(v1.data, "aaa");
+    EXPECT_STREQ(v2.data, "ccc");
+    EXPECT_STREQ(v3.data, "bbb");
+    EXPECT_STREQ(v_bad1.data, "");
+    EXPECT_STREQ(v_bad2.data, "");
+}
+// Проверяем, умеем ли мы добавлять, сплититься, менять корень
+TEST(BLinkSingleThread, Write) {
+    std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
+
+    BLinkTree tree{fname};
+
+    Value v1, v2, v3;
+    strcpy(v1.data, "aaaaaa");
+    strcpy(v2.data, "bbbbbb");
+    strcpy(v3.data, "cccccc");
+    
+    tree.write(1, &v1);
+    tree.write(2, &v2);
+    tree.write(3, &v3);
+
+    auto node_io = NodeIO(fname);
+    auto root_offset = node_io.getRootOffset();
+    EXPECT_EQ(root_offset, 100u) << "Bad creation of service file: false root offset";
+
+    auto root = node_io.readNode(root_offset);
+    EXPECT_EQ(root->flag, ROOT_NODE | LEAF_NODE)  << "Bad node state";
+    EXPECT_EQ(root->buff_size, 3);
+    EXPECT_EQ(root->key_buff_size, 3);
+    EXPECT_EQ(root->right, INVALID_OFFSET);
+    EXPECT_EQ(root->self, 100u);
+    EXPECT_EQ(root->key_buff[0], 1);
+    EXPECT_EQ(root->key_buff[1], 2);
+    EXPECT_EQ(root->key_buff[2], 3);
+
+    for (int i = 4; i <= 2 * L; i++) {
+        tree.write(i, &v3);
+    }
+    free(root);
+    root = node_io.readNode(root_offset);
+    EXPECT_EQ(root->buff_size, 2 * L);
+    free(root);
+    // Сплит ноды. сплит рута, новый рут.
+    tree.write(129, &v1);
+
+    root_offset = node_io.getRootOffset();
+    EXPECT_EQ(root_offset, 100u + 2 * NODE_SIZE) << "Bad new root offset\n";
+    root = node_io.readNode(root_offset);
+
+    EXPECT_EQ(root->key_buff_size, 1);
+    EXPECT_EQ(root->buff_size, 2);
+    EXPECT_EQ(root->node_buff[0], 100ul);
+    EXPECT_EQ(root->node_buff[1], 100ul + NODE_SIZE);
+
+    free(root);
 }
 
-TEST(BLinkSingleThread, Write) {
+TEST(BLinkSingleThread, Read) {
+    // делаем дерево высоты 3
+    std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
 
+    BLinkTree tree{fname};
+
+    Value v1, v2, v3;
+    strcpy(v1.data, "aaaaaa");
+    strcpy(v2.data, "bbbbbb");
+    strcpy(v3.data, "cccccc");
+
+    for (int i = 0; i < (2 * L + 1) * (2 * L); i++) {
+        tree.write(i, &v1);
+    }
+
+    NodeIO io{fname};
+    // Проверим что рут менялся
+    auto root_offset = io.getRootOffset();
+    EXPECT_NE(root_offset, 100ul);
+
+    // Проверим высоту дерева и тот факт что крайняя левая нижняя нода лежит левее всех
+    auto root = io.readNode(root_offset);
+    auto tmp1_offset = root->node_buff[0];
+    free(root);
+
+    auto tmp1 = io.readNode(tmp1_offset);
+    EXPECT_FALSE(btnodeFlag(tmp1, LEAF_NODE));
+    EXPECT_FALSE(btnodeFlag(tmp1, ROOT_NODE));
+
+    auto tmp2_offset = tmp1->node_buff[0];
+    auto tmp2 = io.readNode(tmp2_offset);
+    free(tmp1);
+
+    EXPECT_TRUE(btnodeFlag(tmp2, LEAF_NODE));
+    EXPECT_FALSE(btnodeFlag(tmp2, ROOT_NODE));
+    EXPECT_EQ(tmp2_offset, 100ul);
+    free(tmp2);
+}
+
+TEST(GlobalData, Free) {
+    for (auto lock : BLinkTree::lockmap) {
+        pthread_rwlock_destroy(lock.second);
+        free(lock.second);
+    }
 }

@@ -19,6 +19,8 @@ include(GoogleTest)
 
 enable_testing()
 
+add_compile_options(-pthread)
+
 set(SOURCES
     node.c
     nodeIO.cpp

@@ -8,7 +8,7 @@
 #include "stdio.h"
 
 #ifndef L
-    #define L 64
+    #define L 16
 #endif
 
 #define INVALID_OFFSET 1
@@ -68,5 +68,8 @@ void btnodeAddKeyValue(BTNode* node, Key key, Value* val);
 /// @return pointer to the new righthand node
 BTNode* btnodeSplit(BTNode* node, Offset other);
 
+void btnodeAddKeyChild(BTNode* parent, Key cur_high_key, Offset new_righthand);
+
+size_t fgoe(BTNode* node, Key key);
 
 #endif // NODE_H 

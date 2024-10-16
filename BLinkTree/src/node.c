@@ -34,7 +34,13 @@ Offset btnodeChildByKey(BTNode* node, Key key) {
     if (btnodeFlag(node, LEAF_NODE))
         return INVALID_OFFSET;
 
-    return node->node_buff[fgoe(node, key) + 1];
+    size_t i = fgoe(node, key);
+
+    if (node->key_buff[i] == key) {
+        return node->node_buff[i + 1];
+    }
+
+    return node->node_buff[i];
 }
 
 
@@ -42,6 +48,7 @@ Value btnodeValueByKey(BTNode* node, Key key) {
     size_t ind = fgoe(node, key);
     if (node->key_buff[ind] != key || !btnodeFlag(node, LEAF_NODE)) {
         Value v;
+        memset(v.data, 0, sizeof(char[16]));
         return v;
     }
     else {
@@ -63,15 +70,9 @@ void btnodeAddKeyValue(BTNode* node, Key key, Value* val) {
         node->key_buff[res] = key;
         node->key_buff_size++;
 
-        size_t check2 = node->buff_size;
-
         memmove(node->value_buff + res + 1, node->value_buff + res, (sz - res) * sizeof(Value));
         node->value_buff[res] = *val;
         node->buff_size++;
-
-        size_t check3 = node->buff_size;
-        // assert(check1 == check2);
-        // assert(check2 == check3);
     }
     else {
         node->value_buff[res] = *val;
@@ -87,31 +88,48 @@ BTNode* btnodeSplit(BTNode* node, Offset other) {
     new_right->flag = node->flag;
     
     size_t sz = node->key_buff_size;
-    size_t mid = (sz + 1) / 2;
-    
-    size_t pref;
-    if (btnodeFlag(node, LEAF_NODE)) 
-        pref = 0;
-    else pref = 1;
+    size_t mid = sz / 2;
 
-    node->key_buff_size = mid;
-    node->buff_size = mid + pref;
-
-    new_right->key_buff_size = sz - mid;
-    new_right->buff_size = sz - mid + pref;
-    
-    new_right->right = INVALID_OFFSET;
+    new_right->right = node->right;
+    new_right->high_key = node->high_key;
 
     node->right = other;
     node->high_key = node->key_buff[mid];
 
-    memmove(new_right->key_buff, node->key_buff + mid, (sz - mid) * sizeof(Key));
+    
     if (btnodeFlag(node, LEAF_NODE)) {
+        new_right->key_buff_size = sz - mid;
+        new_right->buff_size = sz - mid;
+
+        node->key_buff_size = mid;
+        node->buff_size = mid;
+
+        memmove(new_right->key_buff, node->key_buff + mid, (sz - mid) * sizeof(Key));
         memmove(new_right->value_buff, node->value_buff + mid, (sz - mid) * sizeof(Value));
     } 
     else {
-        memmove(new_right->node_buff + 1, node->node_buff + mid + 1, sizeof(sz - mid) * sizeof(Offset));
+        new_right->key_buff_size = sz - mid - 1;
+        new_right->buff_size = sz - mid;
+
+        node->key_buff_size = mid;
+        node->buff_size = mid + 1;
+
+        memmove(new_right->key_buff, node->key_buff + mid + 1, (sz - mid - 1) * sizeof(Key));
+        memmove(new_right->node_buff, node->node_buff + mid + 1, sizeof(sz - mid) * sizeof(Offset));
     }
 
     return new_right;
+}
+
+void btnodeAddKeyChild(BTNode* parent, Key cur_high_key, Offset new_righthand) {
+    size_t ind = fgoe(parent, cur_high_key);
+    size_t sz = parent->key_buff_size;
+
+    memmove(parent->key_buff + ind + 1, parent->key_buff + ind, (sz - ind) * sizeof(Key));
+    parent->key_buff_size++;
+    parent->key_buff[ind] = cur_high_key;
+
+    memmove(parent->node_buff + ind + 2, parent->node_buff + ind + 1, (sz - ind) * sizeof(Key));
+    parent->buff_size++;
+    parent->node_buff[ind + 1] = new_righthand;
 }

@@ -36,7 +36,7 @@ extern "C" {
 
 
 // read write operations on service file
-// every operation is tread-unsafe so in cuncurrent programs `offset` mutexes must be locked 
+// every operation is tread-unsafe so in cuncurrent programs `offset` mutexes or rwlocks must be locked 
 class NodeIO {
         int fd;
         std::string fname;
@@ -62,7 +62,6 @@ class NodeIO {
         void writeNode(BTNode* node);
 
         // add space for new node in service file. 
-        // do not write it, so write must be call mannualy on this node. 
         Offset addNode();
 
         static void createEmptyServiceFile(std::string& fname);
@@ -70,7 +69,6 @@ class NodeIO {
         /// @brief get root offset from service file. Thread-safe 
         Offset getRootOffset();
 
-    private:
         /// @brief update root offset in service file. Thread-safe
         /// @param new_root offset if new root node
         void setRootOffset(Offset new_root);        
