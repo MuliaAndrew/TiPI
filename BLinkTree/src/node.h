@@ -8,7 +8,7 @@
 #include "stdio.h"
 
 #ifndef L
-    #define L 16
+    #define L 64
 #endif
 
 #define INVALID_OFFSET 1

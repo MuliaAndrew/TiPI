@@ -1,5 +1,10 @@
 #include "tree.h"
 #include <gtest/gtest.h>
+#include <boost/asio/thread_pool.hpp>
+#include <boost/asio/post.hpp>
+#include <random>
+#include <thread>
+#include <chrono>
 
 // Тесты проверены для L=64 и L=16
 
@@ -101,6 +106,8 @@ TEST(BTNode, Search) {
 
     Value v1, v2, v3; 
     strncpy(v1.data, "abvgd", 6);
+    strncpy(v2.data, "abbbb", 6);
+    strncpy(v3.data, "acccc", 6);
 
     for (int i = 1; root->key_buff_size < 5; i++) {
         btnodeAddKeyValue(root, i * 12 - 11, &v1);
@@ -226,7 +233,7 @@ TEST(NodeIO, NodeAdd) {
     free(right);
 }
 
-TEST(BLinkSingleThread, SimpleRead) {
+TEST(BLinkTreeSingleThread, SimpleRead) {
      std::string fname = "serviceF";
     NodeIO::createEmptyServiceFile(fname);
 
@@ -259,9 +266,15 @@ TEST(BLinkSingleThread, SimpleRead) {
     EXPECT_STREQ(v3.data, "bbb");
     EXPECT_STREQ(v_bad1.data, "");
     EXPECT_STREQ(v_bad2.data, "");
+
+    for (auto lock : BLinkTree::lockmap) {
+        pthread_rwlock_destroy(lock.second);
+        free(lock.second);
+    }
+    BLinkTree::lockmap.clear();
 }
 // Проверяем, умеем ли мы добавлять, сплититься, менять корень
-TEST(BLinkSingleThread, Write) {
+TEST(BLinkTreeSingleThread, Write) {
     std::string fname = "serviceF";
     NodeIO::createEmptyServiceFile(fname);
 
@@ -310,9 +323,15 @@ TEST(BLinkSingleThread, Write) {
     EXPECT_EQ(root->node_buff[1], 100ul + NODE_SIZE);
 
     free(root);
+
+    for (auto lock : BLinkTree::lockmap) {
+        pthread_rwlock_destroy(lock.second);
+        free(lock.second);
+    }
+    BLinkTree::lockmap.clear();
 }
 
-TEST(BLinkSingleThread, Read) {
+TEST(BLinkTreeSingleThread, Read) {
     // делаем дерево высоты 3
     std::string fname = "serviceF";
     NodeIO::createEmptyServiceFile(fname);
@@ -350,6 +369,139 @@ TEST(BLinkSingleThread, Read) {
     EXPECT_FALSE(btnodeFlag(tmp2, ROOT_NODE));
     EXPECT_EQ(tmp2_offset, 100ul);
     free(tmp2);
+
+    for (auto lock : BLinkTree::lockmap) {
+        pthread_rwlock_destroy(lock.second);
+        free(lock.second);
+    }
+    BLinkTree::lockmap.clear();
+}
+
+
+    // гонка за сплит рута. врайтеры деруться за одну и ту же ноду, 
+    // кто сплитит рут, ломает логику другому, он должен среагировать на это
+TEST(BLinkTree, TwoWriters) {
+    std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
+
+    Value v1, v2, v3;
+    strcpy(v1.data, "aaaaaa");
+    strcpy(v2.data, "bbbbbb");
+    strcpy(v3.data, "cccccc");
+
+    std::thread writer1 { [&fname, &v1]() {
+        BLinkTree tree{fname};
+        for (int i = 1; i < L + 2; i++) {
+            tree.write(i * 2, &v1);
+        }
+    }};
+
+    std::thread writer2 { [&fname, &v2]() {
+        BLinkTree tree{fname};
+        for (int i = 0; i < L + 1; i++) {
+            tree.write(i * 2 + 1, &v2);
+        }
+    }};
+    writer1.join();
+    writer2.join();
+
+    // гонка за сплит рута. проверка инвариантов дерева.
+    // должен быть рут с несколькими детьми, прямой обход 
+    // листов должен показать строго возростающий массив ключей
+
+    NodeIO io{fname};
+
+    auto root = io.readNode(io.getRootOffset());
+
+    ASSERT_TRUE(btnodeFlag(root, ROOT_NODE));
+    ASSERT_FALSE(btnodeFlag(root, LEAF_NODE));
+
+    ASSERT_EQ(root->key_buff_size, 1);
+    ASSERT_EQ(root->buff_size, 2);
+
+    auto left = io.readNode(root->node_buff[0]);
+    ASSERT_EQ(root->key_buff[0], left->high_key);
+
+    auto offset = root->node_buff[0];
+    BTNode* current;
+
+    int k = 1;
+    do {
+        current = io.readNode(offset);
+        offset = current->right;
+        for (int i = 0; i < current->key_buff_size; i++, k++) {
+            EXPECT_EQ(k, current->key_buff[i]);
+            if (!(k % 2)) {
+                EXPECT_STREQ(current->value_buff[i].data, v1.data);
+            }
+            else {
+                EXPECT_STREQ(current->value_buff[i].data, v2.data);
+            }
+        }
+        free(current);
+    } while(offset != INVALID_OFFSET);
+    k--;
+
+    // кол-во пар (ключ, значение) должно быть равно кол-ву записей с уник. ключем
+    ASSERT_EQ(k, 2 * (L + 1));
+
+    free(root);
+
+    for (auto lock : BLinkTree::lockmap) {
+        pthread_rwlock_destroy(lock.second);
+        free(lock.second);
+    }
+    BLinkTree::lockmap.clear();
+}
+
+// Пытаемся читать из большого числа потоков 
+// Проверяем что кол-во читателей не замедляют работу 
+TEST(BLinkTree, MultipleReaders) {
+    std::string fname = "serviceF";
+    NodeIO::createEmptyServiceFile(fname);
+
+    Value v[3];
+    strcpy(v[0].data, "aaaaaa");
+    strcpy(v[1].data, "bbbbbb");
+    strcpy(v[2].data, "cccccc");
+
+    // рандомное дерево
+
+    Key keys[100];
+    BLinkTree tree{fname};
+
+    for (int i = 0; i < 100; i++) {
+        keys[i] = std::abs(random());
+        tree.write(keys[i], v + (i % 3));
+    }
+
+    boost::asio::thread_pool pool2{2};
+    
+    auto reader_with_check = [&] (int j) {
+        auto tree = BLinkTree{fname};
+        for (int i = 0; i < 100; i++) {
+            tree.read(keys[i]);
+        }
+        EXPECT_STREQ(tree.read(keys[j]).data, v[j % 3].data);
+    };
+
+    // делаем 10000 чтений cо случайной проверкой корректности
+    for (int i = 0; i < 100; i++) {
+        boost::asio::post(pool2, std::bind(reader_with_check, i));
+    }
+
+    pool2.join();
+
+    auto reader =  [&] () {
+        auto tree = BLinkTree{fname};
+        for (int i = 0; i < 100; i++) {
+            tree.read(keys[i]);
+        }
+    };
+}
+
+TEST(BLinkTree, Scenarios) {
+
 }
 
 TEST(GlobalData, Free) {

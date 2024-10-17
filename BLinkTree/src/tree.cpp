@@ -7,11 +7,21 @@
 #define wrLock(lock) pthread_rwlock_wrlock((lock))
 #define unLock(lock) pthread_rwlock_unlock((lock))
 
+#define WTF
+#ifdef WTF
+    #define DBG(msg) \
+        std::cout << "[ERR " << gettid() << "] : " << msg << "\n"
+#else
+    #define DBG(msg) {}
+#endif
+
 
 const Offset ROOT_OFFSET = 100;
 
+
 std::mutex BLinkTree::lockmap_mut{};
 Lockmap BLinkTree::lockmap{};
+
  
 BLinkTree::BLinkTree(const std::string& fname) {
     node_io = NodeIO(fname);
@@ -53,15 +63,18 @@ Value BLinkTree::read(Key key) {
     
     rdLock(lock);
 
+    /////// May be useless logic
+
     // while waiting for root lock root can be changed 
-    auto root_tmp = node_io.getRootOffset();
-    while (root_tmp != root) {
-        unLock(lock);
-        lock = getNodeRWLock(root_tmp);
-        root = root_tmp;
-        rdLock(lock);
-        root_tmp = node_io.getRootOffset();
-    } // now root is valid 
+    // auto root_tmp = node_io.getRootOffset();
+    // while (root_tmp != root) {
+    //     unLock(lock);
+    //     lock = getNodeRWLock(root_tmp);
+    //     root = root_tmp;
+    //     rdLock(lock);
+    //     root_tmp = node_io.getRootOffset();
+    // } // now root is valid 
+    ///////---------------------------------------
 
     BTNode* current = node_io.readNode(root);
 
@@ -137,9 +150,14 @@ void BLinkTree::write(Key key, Value* value) {
         current = node_io.readNode(offset);
     }
 
+    auto tmp_offset = current->self;
+    free(current);
+
     // release read lock and take write lock
     unLock(lock);
     wrLock(lock);
+    
+    current = node_io.readNode(tmp_offset);
 
     // case when node was splited and value must be inserted to the right node
     // case may only happen just after split on this node
@@ -152,6 +170,7 @@ void BLinkTree::write(Key key, Value* value) {
         free(current);
         current = node_io.readNode(offset);
     }
+
 
     // check if node is "safe"
     if (current->key_buff_size < 2 * L) {
@@ -177,6 +196,8 @@ void BLinkTree::write(Key key, Value* value) {
     Key key_to_add = key;
 
     // while current node not a ROOT and its unsafe locking self and parent for write
+    // splitting and add a node to the parent
+    // repeating while current is unsafe or is not a root
     while(current->key_buff_size == 2 * L && !btnodeFlag(current, ROOT_NODE)) {
         auto parent_offset = stk.top();
         stk.pop();
@@ -229,7 +250,6 @@ void BLinkTree::write(Key key, Value* value) {
     }
 
     if (current->key_buff_size == 2 * L && btnodeFlag(current, ROOT_NODE)) {
-        
         auto right_offset = node_io.addNode();
         getNodeRWLock(right_offset);
 
@@ -276,7 +296,6 @@ void BLinkTree::write(Key key, Value* value) {
 
         unLock(lock);
         unLock(root_lock);
-
     }
     else {
         btnodeAddKeyChild(current, key_to_add, node_to_add);
@@ -284,7 +303,6 @@ void BLinkTree::write(Key key, Value* value) {
 
         free(current);
 
-        unLock(prev);
         unLock(lock);
     }
 }

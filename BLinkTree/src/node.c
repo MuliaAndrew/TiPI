@@ -71,11 +71,11 @@ void btnodeAddKeyValue(BTNode* node, Key key, Value* val) {
         node->key_buff_size++;
 
         memmove(node->value_buff + res + 1, node->value_buff + res, (sz - res) * sizeof(Value));
-        node->value_buff[res] = *val;
+        memcpy(&(node->value_buff[res]), val, sizeof(Value));
         node->buff_size++;
     }
     else {
-        node->value_buff[res] = *val;
+        memcpy(&(node->value_buff[res]), val, sizeof(Value));
     }
 }
 
