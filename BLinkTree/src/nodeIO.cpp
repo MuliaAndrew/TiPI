@@ -8,92 +8,18 @@ std::shared_mutex NodeIO::mut_root{};
 
 // assotiated `lock` in `lockmap` must be taken before read and released after mannualy
 BTNode* NodeIO::readNode(Offset offset) {
-    char buff[NODE_SIZE + 1] = {};
-    if (lseek(fd, offset, SEEK_SET) != offset || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad read lseek\n";
+    BTNode* node = (BTNode*)malloc(NODE_SIZE);
+    if (::pread(fd, node, NODE_SIZE, offset) != NODE_SIZE || errno) {
+        perror("bad node read");
         exit(1);
     }
-    if (::read(fd, buff, NODE_SIZE) != NODE_SIZE || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad node read\n";
-        exit(1);
-    }
-
-    auto node = (BTNode*)malloc(sizeof(BTNode));
-
-    size_t t_offset = offset_of(BTNode, self);
-    node->self = member_val(Offset, buff, t_offset);
-
-    t_offset = offset_of(BTNode, key_buff_size);
-    node->key_buff_size = member_val(size_t, buff, t_offset);
-
-    t_offset = offset_of(BTNode, key_buff);
-    memcpy(node->key_buff, buff + t_offset, sizeof(Key[2 * L]));
-
-    t_offset = offset_of(BTNode, right);
-    node->right = member_val(Offset, buff, t_offset);
-
-    t_offset = offset_of(BTNode, high_key);
-    node->high_key = member_val(Key, buff, t_offset);
-
-    t_offset = offset_of(BTNode, flag);
-    node->flag = member_val(int, buff, t_offset);
-
-    t_offset = offset_of(BTNode, buff_size);
-    node->buff_size = member_val(size_t, buff, t_offset);
-
-    if (btnodeFlag(node, LEAF_NODE)) {
-        t_offset = offset_of(BTNode, value_buff);
-        memcpy(node->value_buff, buff + t_offset, sizeof(Value[2 * L]));
-    } 
-    else {
-        t_offset = offset_of(BTNode, node_buff);
-        memcpy(node->node_buff, buff + t_offset, sizeof(Offset[2 * L + 1]));
-    }
-
     return node;
 }
 
 void NodeIO::writeNode(BTNode* current) {
-    char buff[NODE_SIZE + 1] = {};
-    
-    size_t t_offset = 0;
-
-    t_offset = offset_of(BTNode, self);
-    member_val(Offset, buff, t_offset) = current->self;
-
-    t_offset = offset_of(BTNode, key_buff_size);
-    member_val(size_t, buff, t_offset) = current->key_buff_size;
-
-    t_offset = offset_of(BTNode, key_buff);
-    memcpy(buff + t_offset, current->key_buff, sizeof(Key[2 * L]));
-
-    t_offset = offset_of(BTNode, right);
-    member_val(Offset, buff, t_offset) = current->right;
-
-    t_offset = offset_of(BTNode, high_key);
-    member_val(Key, buff, t_offset) = current->high_key;
-
-    t_offset = offset_of(BTNode, flag);
-    member_val(int, buff, t_offset) = current->flag;
-
-    t_offset = offset_of(BTNode, buff_size);
-    member_val(size_t, buff, t_offset) = current->buff_size;
-
-    if (btnodeFlag(current, LEAF_NODE)) {
-        t_offset = offset_of(BTNode, value_buff);
-        memcpy(buff + t_offset, current->value_buff, sizeof(Value[2 * L]));
-    } 
-    else {
-        t_offset = offset_of(BTNode, node_buff);
-        memcpy(buff + t_offset, current->node_buff, sizeof(Offset[2 * L + 1]));
-    }
-
-    if (lseek(fd, current->self, SEEK_SET) != current->self || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad write lseek\n";
-        exit(1);
-    }
-    if (::write(fd, buff, NODE_SIZE) != NODE_SIZE || errno) {
-        std::cout << "[ERR " << getpid() << "] Bad node write\n"; 
+    auto offset = current->self;
+    if (::pwrite(fd, current, NODE_SIZE, offset) != NODE_SIZE || errno) {
+        perror("bad node write");
         exit(1);
     }
 }
