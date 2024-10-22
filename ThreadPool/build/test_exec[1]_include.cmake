@@ -1,0 +1,5 @@
+if(EXISTS "/home/muliaandrew/TiPI/ThreadPool/build/test_exec[1]_tests.cmake")
+  include("/home/muliaandrew/TiPI/ThreadPool/build/test_exec[1]_tests.cmake")
+else()
+  add_test(test_exec_NOT_BUILT test_exec_NOT_BUILT)
+endif()

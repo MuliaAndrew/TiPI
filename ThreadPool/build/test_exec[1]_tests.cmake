@@ -1,0 +1,5 @@
+add_test( ThreadPool.Unit1 /home/muliaandrew/TiPI/ThreadPool/build/test_exec [==[--gtest_filter=ThreadPool.Unit1]==] --gtest_also_run_disabled_tests)
+set_tests_properties( ThreadPool.Unit1 PROPERTIES WORKING_DIRECTORY /home/muliaandrew/TiPI/ThreadPool/build SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test( ThreadPool.Unit2 /home/muliaandrew/TiPI/ThreadPool/build/test_exec [==[--gtest_filter=ThreadPool.Unit2]==] --gtest_also_run_disabled_tests)
+set_tests_properties( ThreadPool.Unit2 PROPERTIES WORKING_DIRECTORY /home/muliaandrew/TiPI/ThreadPool/build SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set( test_exec_TESTS ThreadPool.Unit1 ThreadPool.Unit2)

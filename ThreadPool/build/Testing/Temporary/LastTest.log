@@ -1,0 +1,24 @@
+Start testing: Oct 22 13:45 MSK
+----------------------------------------------------------
+1/1 Testing: ThreadPool.Unit1
+1/1 Test: ThreadPool.Unit1
+Command: "/home/muliaandrew/TiPI/ThreadPool/build/test_exec" "--gtest_filter=ThreadPool.Unit1" "--gtest_also_run_disabled_tests"
+Directory: /home/muliaandrew/TiPI/ThreadPool/build
+"ThreadPool.Unit1" start time: Oct 22 13:45 MSK
+Output:
+----------------------------------------------------------
+Running main() from /home/muliaandrew/TiPI/ThreadPool/build/_deps/googletest-src/googletest/src/gtest_main.cc
+Note: Google Test filter = ThreadPool.Unit1
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ThreadPool
+[ RUN      ] ThreadPool.Unit1
+<end of output>
+Test time =   0.09 sec
+----------------------------------------------------------
+Test Failed.
+"ThreadPool.Unit1" end time: Oct 22 13:45 MSK
+"ThreadPool.Unit1" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 22 13:45 MSK
