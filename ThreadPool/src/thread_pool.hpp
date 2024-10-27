@@ -1,3 +1,5 @@
+#pragma once
+
 #include <mutex>
 #include <functional>
 #include <thread>
@@ -21,8 +23,6 @@ class ThreadPool {
         const unsigned n_threads;
         std::vector<std::thread> threads;
 
-        QueuePair pool_queue;
-
         std::vector<QueuePair> queue;
 
         static thread_local unsigned ind;
@@ -32,12 +32,14 @@ class ThreadPool {
         void worker() {
             while (true) {
                 Task t;
-                if (tryPopLocal(t) || tryPopPool(t) || trySteal(t)) {
+                if (tryPopLocal(t) || trySteal(t)) {
                     try {
                         t();
                     }
                     catch(std::exception& e) {
                         std::cout << e.what();
+                        done = true;
+                        throw e;
                     }
                 } 
                 else if (done)
@@ -110,22 +112,10 @@ class ThreadPool {
             return true;
         }
 
-        bool tryPopPool(Task& t) {
-            auto lg = std::lock_guard(pool_queue.m);
-
-            if (pool_queue.q.empty())
-                return false;
-            
-            t = pool_queue.q.back();
-            pool_queue.q.pop_back();
-
-            return true;
-        }
-
     public:
 
         /// Not DefaultConstructable
-        ThreadPool() = delete; 
+        ThreadPool() : ThreadPool(std::thread::hardware_concurrency()) {}
 
         /// Not CopyConstructable
         ThreadPool(const ThreadPool&) = delete;
@@ -137,7 +127,7 @@ class ThreadPool {
 
         /// @brief  Constructs a ThreadPool with work stealing implementation of `n_threads_` threads 
         /// @warning The behavior of constructor and any other class methods is undefined if `n_threads_` is 0
-        explicit ThreadPool(const unsigned n_threads_ = std::thread::hardware_concurrency())
+        explicit ThreadPool(const unsigned n_threads_)
             : n_threads(n_threads_), queue(std::vector<QueuePair>{n_threads})
         {
             done = false, 
@@ -171,8 +161,9 @@ class ThreadPool {
                 queue[ind].q.push_front(std::move(tsk));
             }
             else {
-                auto lg = std::lock_guard(pool_queue.m);
-                pool_queue.q.push_front(std::move(tsk));
+                int th = rand() % n_threads;
+                auto lg = std::lock_guard(queue[th].m);
+                queue[th].q.push_front(std::move(tsk));
             }
         }
 

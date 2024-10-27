@@ -28,5 +28,13 @@ target_link_libraries(
     GTest::gtest_main
 )
 
+add_executable(
+    main
+    ${CMAKE_CURRENT_LIST_DIR}/main.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/data_samples.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/data_samples.hpp
+    ${SOURCES}
+)
+
 include(GoogleTest)
 gtest_discover_tests(test_exec)

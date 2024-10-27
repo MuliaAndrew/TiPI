@@ -12,9 +12,9 @@ TEST(ThreadPool, Unit1) {
 }
 
 TEST(ThreadPool, Unit2) {
-    ThreadPool pool{6};
+    ThreadPool pool{16};
     std::mutex cout_lock;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 100; i++) {
         pool.submit([i, &cout_lock](){
             auto pool = ThreadPool::current();
             cout_lock.lock();
@@ -23,9 +23,9 @@ TEST(ThreadPool, Unit2) {
             std::cout << s.rdbuf();
             cout_lock.unlock();
             for (int k = 0; k < 2; k ++) {
-                auto lg = std::lock_guard(cout_lock);
                 pool->submit([=, &cout_lock]() {
-                    std::cout << "[" << gettid() << "] I am subtask number " << i * 2 + k + 6 << "!" << std::endl;
+                    auto lg = std::lock_guard(cout_lock);
+                    std::cout << "[" << gettid() << "] I am subtask number " << i * 2 + k + 100 << "!" << std::endl;
                 });
             }
         });
