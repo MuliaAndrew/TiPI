@@ -1,0 +1,4 @@
+floppy.img
+fs/*
+.vscode
+build
