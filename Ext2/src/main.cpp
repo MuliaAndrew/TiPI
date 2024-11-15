@@ -9,11 +9,12 @@ const std::string USAGE_MSG =
   "arg2 : {d : searched file is directory; dir_entry list will be printed} | {r : regular file; file will be printed to std::out}\n";
 
 enum Cmd {
-  REG_INODE = 0b001,
-  REG_PATH  = 0b000,
-  REG_BLCKS = 0b100,
-  DIR_INODE = 0b011,
-  DIR_PATH  = 0b010,
+  REG_INODE       = 0b001,
+  REG_PATH        = 0b000,
+  REG_BLCKS       = 0b101,
+  REG_BLCKS_FPATH = 0b100,
+  DIR_INODE       = 0b011,
+  DIR_PATH        = 0b010,
 };
 
 int parseInput(std::string &&input1, std::string &&input2) {
@@ -47,12 +48,13 @@ int main(int argc, char** argv) {
   int32_t inode = 0; 
   Reader reader("floppy.img");
 
-  // DBG!
-  return 0;
-
   switch (mode) {
     case Cmd::REG_PATH: {
       inode = reader.inodeFromPath(argv[1]);
+      if (inode == -1) {
+        std::cerr << argv[1] << " does not exist\n";
+        return 1;
+      }
     }
     case Cmd::REG_INODE: {
       if (!inode)
@@ -62,15 +64,27 @@ int main(int argc, char** argv) {
 
       break;
     }
-    case Cmd::REG_BLCKS: {
-      inode = std::stoi(argv[1]);
-
+    case Cmd::REG_BLCKS_FPATH: {
+      inode = reader.inodeFromPath(argv[1]);
+      if (inode == -1) {
+        std::cerr << argv[1] << " does not exist\n";
+        return 1;
+      }
       reader.enumerateBlocks(inode);
 
       break;
+    case Cmd::REG_BLCKS: {
+      reader.enumerateBlocks(std::stoi(argv[1]));
+
+      break;
+    }
     }
     case Cmd::DIR_PATH: {
       inode = reader.inodeFromPath(argv[1]);
+      if (inode == -1) {
+        std::cerr << argv[1] << " does not exist\n";
+        return 1;
+      }
     }
     case Cmd::DIR_INODE: {
       if (!inode)
