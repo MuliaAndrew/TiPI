@@ -7,4 +7,4 @@ set(C_STANDARD 11)
 set(CXX_STANDARD_REQUIRED On)
 set(CXX_STANDARD 17)
 
-include(src/CmakeLists.txt)
+include(src/CMakeLists.txt)

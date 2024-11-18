@@ -1,7 +1,7 @@
 include(FetchContent)
 FetchContent_Declare(
   googletest
-  GIT https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+  URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
 )
 
 FetchContent_MakeAvailable(googletest)
@@ -9,15 +9,22 @@ include(GoogleTest)
 
 enable_testing()
 
-add_compile_options(-pthread)
-
+set(
+  SRC
+  ${CMAKE_CURRENT_LIST_DIR}
+)
 set(
   SOURCES
-  
+  ${SRC}/TASLock.hpp
+  ${SRC}/TTASLock.hpp
+  ${SRC}/TicketLock.hpp
+  ${SRC}/MCSLock.hpp
+  ${SRC}/tests.cpp
 )
 
 add_executable(
-  text_exec
+  test_exec
+  ${SOURCES}
 )
 
 target_link_libraries(
@@ -25,5 +32,4 @@ target_link_libraries(
     GTest::gtest_main
 )
 
-include(GoogleTest)
 gtest_discover_tests(test_exec)
