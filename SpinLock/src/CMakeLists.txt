@@ -18,7 +18,6 @@ set(
   ${SRC}/TASLock.hpp
   ${SRC}/TTASLock.hpp
   ${SRC}/TicketLock.hpp
-  ${SRC}/MCSLock.hpp
   ${SRC}/tests.cpp
 )
 

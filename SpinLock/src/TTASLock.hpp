@@ -1,67 +1,49 @@
 #include <atomic>
 #include <thread>
 
-class TTASLockYield {
+class TTASLock {
     std::atomic<bool> locked;
-
-  public:
-    void lock() {
-      bool state = 0;
-      do {
-        bool loaded = locked.load(std::memory_order_relaxed);
-        while (loaded == 1) {
-          loaded = locked.load(std::memory_order_relaxed);
-          std::this_thread::yield();
-        }
-      }
-      while (locked.compare_exchange_strong(state, 1, std::memory_order_acquire, std::memory_order_relaxed));
+    
+    void nop() {
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
     }
-
-    void unlock() {
-      locked.store(0, std::memory_order_release);
-    }
-};
-
-class TTASLockConstBackoff {
-    std::atomic<bool> locked;
 
   public:
     void lock() {
       using namespace std::chrono_literals;
       bool state = 0;
+      auto backoff = 40ns;
+      uint64_t iter = 0;
       do {
         bool loaded = locked.load(std::memory_order_relaxed);
         while (loaded == 1) {
           loaded = locked.load(std::memory_order_relaxed);
-          std::this_thread::sleep_for(200ns);
+          
+          if (iter < 0x10) {
+            for (int i = 0; i < iter; i++)
+              nop();
+          }
+          else if (iter < 0x20)
+            std::this_thread::yield();
+          else {
+            std::this_thread::sleep_for(backoff);
+            backoff *= (backoff < 10ms) ? 2 : 1;
+          }
+          iter++;
         }
       }
-      while (locked.compare_exchange_weak(state, 1, std::memory_order_acquire, std::memory_order_relaxed));
-    }
-
-    void unlock() {
-      locked.store(0, std::memory_order_release);
-    }
-};
-
-class TTASLockExpBackoff {
-    std::atomic<bool> locked;
-
-  public:
-    void lock() {
-      using namespace std::chrono_literals;
-      bool state = 0;
-      do {
-        bool loaded = locked.load(std::memory_order_relaxed);
-        auto backoff = 10ns;
-        while (loaded == 1) {
-          loaded = locked.load(std::memory_order_relaxed);
-          std::this_thread::sleep_for(backoff);
-          if (backoff < 200us) 
-            backoff *= 2;
-        }
-      }
-      while (locked.compare_exchange_weak(state, 1, std::memory_order_acquire, std::memory_order_relaxed));
+      while (!locked.compare_exchange_strong(state, 1, std::memory_order_acquire, std::memory_order_relaxed));
     }
 
     void unlock() {

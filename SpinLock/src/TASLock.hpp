@@ -1,52 +1,45 @@
 #include <atomic>
 #include <thread>
 
-class TASLockYield {
-    std::atomic<bool> locked;
+class TASLock {
+    std::atomic<bool> locked{0};
 
-  public:
-    void lock() {
-      bool state = 0;
-      while (!locked.compare_exchange_weak(state, 1, std::memory_order_acquire, std::memory_order_relaxed))
-        std::this_thread::yield();
+    void nop() {
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
+      asm volatile ("nop");
     }
-    
-    void unlock() {
-      locked.store(0, std::memory_order_release);
-    }
-};
-
-class TASLockConstBackoff {
-    std::atomic<bool> locked;
-
-  public:
-    void lock() {
-      using namespace std::chrono_literals;
-      bool state = 0;
-      while (!locked.compare_exchange_strong(state, 1, std::memory_order_acquire, std::memory_order_relaxed))
-        std::this_thread::sleep_for(200ns);
-    }
-
-    void unlock() {
-      locked.store(0, std::memory_order_release);
-    }
-};
-
-class TASLockExpBackoff {
-    std::atomic<bool> locked;
 
   public:
     void lock() {
       using namespace std::chrono_literals;
-      auto backoff = 10ns;
       bool state = 0;
-      while (!locked.compare_exchange_weak(state, 1, std::memory_order_acquire, std::memory_order_relaxed)) {
-        std::this_thread::sleep_for(backoff);
-        if (backoff < 200us)
-          backoff *= 2;
+      auto backoff = 40ns;
+      uint64_t iter = 0;
+      while (!locked.compare_exchange_strong(state, 1, std::memory_order_acquire)) {
+        if (iter < 0x10) {
+          for (int i = 0; i < iter; i++)
+            nop();
+        }
+        else if (iter < 0x20) 
+          std::this_thread::yield();
+        else {
+          std::this_thread::sleep_for(backoff);
+          backoff *= (backoff < 10ms) ? 2 : 1;
+        }
+        iter++;
       }
     }
-
+    
     void unlock() {
       locked.store(0, std::memory_order_release);
     }

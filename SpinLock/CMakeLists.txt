@@ -8,3 +8,5 @@ set(CXX_STANDARD_REQUIRED On)
 set(CXX_STANDARD 17)
 
 include(src/CMakeLists.txt)
+
+make_directory(res)
