@@ -18,11 +18,17 @@ set(
   ${SRC}/TASLock.hpp
   ${SRC}/TTASLock.hpp
   ${SRC}/TicketLock.hpp
-  ${SRC}/tests.cpp
 )
 
 add_executable(
   test_exec
+  ${SRC}/tests.cpp
+  ${SOURCES}
+)
+
+add_executable(
+  bench
+  ${SRC}/main.cpp
   ${SOURCES}
 )
 

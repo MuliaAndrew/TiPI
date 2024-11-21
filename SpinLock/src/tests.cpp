@@ -25,6 +25,7 @@ TEST(MutualExclusion, TASLock) {
   }
   for (auto &th : threads1)
     th.join();
+
   EXPECT_EQ(num1, 20000);
 
   unsigned int num2 = 0;
@@ -42,6 +43,8 @@ TEST(MutualExclusion, TASLock) {
   }
   for (auto &th : threads2)
     th.join();
+  
+
   EXPECT_EQ(num2, 200000);
 }
 
