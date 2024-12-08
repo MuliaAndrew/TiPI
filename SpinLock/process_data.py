@@ -11,7 +11,7 @@ def process_lock_stat(lockname: str, average: list, maximum: list):
   lockname += "Lock время вхождения"
   
   x = np.arange(1, NUM_THREADS+1)
-  y1_average = np.array(average)
+  y1_average = np.abs(np.array(average))
   y1_maximum = np.array(list(int(elem // 1000) for elem in maximum))
 
   plt.plot(x, y1_average, '.r', linestyle='', label="Среднее за 50000 итераций")

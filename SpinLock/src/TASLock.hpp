@@ -9,13 +9,13 @@ class TASLock final {
   public:
     void lock() {
       uint32_t state = 0;
-      while (!locked.compare_exchange_weak(state, 1, std::memory_order_acquire, std::memory_order_relaxed)) {
+      while (!locked.compare_exchange_weak(state, 1, std::memory_order_acquire)) {
         asm volatile ("pause");
         state = 0;
       }
     }
     
     void unlock() {
-      locked.store(0);
+      locked.store(0, std::memory_order_release);
     }
 };

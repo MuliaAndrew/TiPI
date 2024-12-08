@@ -85,11 +85,11 @@ void Reader::fill() {
   NUM_OF_BLCK_GROUPS = INODE_TOTAL / INODE_PER_GROUP + ((INODE_TOTAL % INODE_PER_GROUP) ? 1 : 0);
 
   // DBG!
-  // std::cout << "BLCK_SIZE : " << BLCK_SIZE << "\n"
-  //   << "INODE_SIZE : " << INODE_SIZE << "\n"
-  //   << "INODE_PER_GROUP : " << INODE_PER_GROUP << "\n"
-  //   << "INODE_TOTAL : " << INODE_TOTAL << "\n"
-  //   << "NUM_OF_BLCK_GROUPS : " << NUM_OF_BLCK_GROUPS << "\n";
+  std::cout << "BLCK_SIZE : " << BLCK_SIZE << "\n"
+    << "INODE_SIZE : " << INODE_SIZE << "\n"
+    << "INODE_PER_GROUP : " << INODE_PER_GROUP << "\n"
+    << "INODE_TOTAL : " << INODE_TOTAL << "\n"
+    << "NUM_OF_BLCK_GROUPS : " << NUM_OF_BLCK_GROUPS << "\n\n";
 }
 
 void Inode::fill() {

@@ -1,11 +1,7 @@
 include(FetchContent)
 FetchContent_Declare(
   googletest
-<<<<<<< HEAD
   URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
-=======
-  GIT https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
->>>>>>> master
 )
 
 FetchContent_MakeAvailable(googletest)
