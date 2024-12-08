@@ -9,12 +9,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pwd.h>
+#include <stdio.h>
 #include <fstream>
 
 namespace po = boost::program_options;
 typedef std::list<std::string> Res;
 
-const std::string LABEL = " COMMAND    PID     USER   FD    TYPE  SIZE/OFF    NODE NAME\n";
+const std::string LABEL = " COMMAND    PID       USER    FD    TYPE   SIZE/OFF     NODE NAME";
 
 #define COMMAND_OFF 8
 #define PID_OFF     15
@@ -25,11 +26,17 @@ const std::string LABEL = " COMMAND    PID     USER   FD    TYPE  SIZE/OFF    NO
 #define NODE_OFF    55
 #define NAME_OFF    57
 
-const std::string PROC_PATH = "/proc/";
+const std::string PROC_PATH = "/proc";
+
+#define DBG(desc, msg) std::cout << "["#desc"] " << msg << "\n";
+
+std::string filterByUser  = "";
+int filterByPID           = 0;
+std::string filterByFile  = "";
 
 Res pidRead(std::string&& spid) {
   Res res;
-  char buff[1024];
+  char buff[2048] = {};
 
   // Command
   std::ifstream command_fd(PROC_PATH + "/" + spid + "/" + "comm");
@@ -60,7 +67,7 @@ Res pidRead(std::string&& spid) {
 
   // -u flag
   if (filterByUser != "" && filterByUser != user_name)
-    return;
+    return {};
 
   // ITERATE OVER fd/ DIR
   DIR* pid_fd_dir = opendir((PROC_PATH + "/" + spid + "/fd").c_str());
@@ -72,6 +79,8 @@ Res pidRead(std::string&& spid) {
     stat(fd_link_path.c_str(), &fd_stat);
 
     // fd 
+    if (std::string(dent->d_name).find_first_not_of("0123456789") != std::string::npos)
+      continue;
     int fd_num = std::stoi(dent->d_name);
     
     char ftype[5];
@@ -103,10 +112,11 @@ Res pidRead(std::string&& spid) {
     
     // -f flag 
     if (filterByFile != "" && filterByFile != fname)
+      continue;
 
     sprintf(
       buff, 
-      "%9s %6d %9s %5d %8s %10s %8s %-2s", 
+      "%-9s %6d %9s %5d %7s %10d %8d %-2s", 
       cmd.c_str(),
       pid,
       user_name.c_str(),
@@ -116,10 +126,15 @@ Res pidRead(std::string&& spid) {
       fd_node,
       fname
     );
+
     res.push_back(buff);
+
+    memset(buff, '\0', 2048);
   }
 
   closedir(pid_fd_dir);
+
+  DIR* pid_mem_dir = opendir((PROC_PATH + "/" + spid + "/").c_str());
 
   return res;
 }
@@ -136,13 +151,13 @@ Res procRead() {
     
     std::string sname(dent->d_name);
     if (sname.find_first_not_of("0123456789") != std::string::npos)
-      break;
+      continue;
 
     // -p flag
     if (filterByPID != 0 && filterByPID != std::stoi(sname))
       continue;
 
-    res.merge(pidRead(std::string(PROC_PATH) + "/" + sname));
+    res.merge(pidRead(std::move(sname)));
   }
 
   closedir(proc);
@@ -155,13 +170,12 @@ Res procRead() {
   return res;
 }
 
-std::string filterByUser  = "";
-int filterByPID           = 0;
-std::string filterByFile  = "";
-
 void printRes(Res& out) {
   std::cout << LABEL << "\n";
 
+  for (auto &res : out) {
+    std::cout << res << "\n";
+  }
 }
 
 int main(int argc, char** argv) {
@@ -172,10 +186,10 @@ int main(int argc, char** argv) {
   string file;
 
   desc.add_options()
-    ("help, h", "Show this help")
-    ("user, u", po::value<pid_t>()->value_name("USER"), "Show only files used by specified `user`")
-    ("process, p", po::value<pid_t>()->value_name("PID"), "Show only files used by process with pid=`PID`")
-    ("file, f", po::value<string>()->value_name("PATH"), "Show only descriptors of file with `PATH` to this file")
+    ("help", "Show this help")
+    ("user", po::value<pid_t>()->value_name("USER"), "Show only files used by specified `user`")
+    ("process", po::value<pid_t>()->value_name("PID"), "Show only files used by process with pid=`PID`")
+    ("file", po::value<string>()->value_name("PATH"), "Show only descriptors of file with `PATH` to this file")
   ;
 
   po::variables_map vm;
@@ -189,7 +203,7 @@ int main(int argc, char** argv) {
   if (vm.count("user"))
     filterByUser = vm["user"].as<string>();
   
-  if (vm.count("proccess"))
+  if (vm.count("process"))
     filterByPID = vm["process"].as<pid_t>();
   
   if (vm.count("file"))
