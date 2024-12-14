@@ -11,7 +11,7 @@ struct Node {
 };
 
 template <typename T>
-struct alignas(16) TaggedPointer {
+struct TaggedPointer {
     Node<T>* ptr;
     uintptr_t tag;
 
@@ -38,32 +38,33 @@ class LockFreeStack {
         TaggedPointer<T> newHead(newNode, oldHead.tag + 1);
 
         if (head.compare_exchange_weak(
-          oldHead, 
-          newHead,
-          std::memory_order_release,
-          std::memory_order_relaxed)) {
+              oldHead, 
+              newHead,
+              std::memory_order_release,
+              std::memory_order_relaxed)) {
           break;
         }
       }
     }
 
-    std::unique_ptr<T> pop() {
+    T pop() {
       TaggedPointer<T> oldHead = head.load(std::memory_order_relaxed);
 
       while (oldHead.ptr) {
         TaggedPointer<T> newHead(oldHead.ptr->next, oldHead.tag + 1);
 
-        if (head.compare_exchange_weak(
-          oldHead, newHead,
-          std::memory_order_acquire,
-          std::memory_order_relaxed)) {
-          std::unique_ptr<T> result = std::make_unique<T>(oldHead.ptr->data);
+        if (head.compare_exchange_weak( 
+              oldHead, 
+              newHead, 
+              std::memory_order_acquire, 
+              std::memory_order_relaxed)) {
+          T result = oldHead.ptr->data;
           delete oldHead.ptr;
           return result;
         }
       }
 
-      return nullptr; // Stack is empty
+      return {};
     }
 
     bool isEmpty() const {

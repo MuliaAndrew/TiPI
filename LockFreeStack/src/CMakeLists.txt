@@ -4,6 +4,9 @@ FetchContent_Declare(
   URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
 )
 
+add_link_options(-latomic)
+add_compile_options(-g)
+
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
@@ -29,5 +32,3 @@ target_link_libraries(
     test_exec
     GTest::gtest_main
 )
-
-gtest_discover_tests(test_exec)
