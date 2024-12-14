@@ -50,14 +50,14 @@ Res pidRead(std::string&& spid) {
   // USER
   std::ifstream status_fd(PROC_PATH + "/" + spid + "/" + "status");
 
-  for (int i = 0; i < 8; i++)
-    status_fd.getline(nullptr, 0);
-  
   char _[256];
-  status_fd.getline(_, 256);
-  status_fd >> _;
+  for (int i = 0; i < 8; i++)
+    status_fd.getline(_, 256);
+  
   int uid = 0;
-  status_fd >> uid;
+  status_fd >> _ >> uid;
+  if (std::string(_) != "Uid:")
+    std::cerr << "BAD status read : " << _ << "\n";
 
   status_fd.close();
 
@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
 
   desc.add_options()
     ("help", "Show this help")
-    ("user", po::value<pid_t>()->value_name("USER"), "Show only files used by specified `user`")
+    ("user", po::value<string>()->value_name("USER"), "Show only files used by specified `user`")
     ("process", po::value<pid_t>()->value_name("PID"), "Show only files used by process with pid=`PID`")
     ("file", po::value<string>()->value_name("PATH"), "Show only descriptors of file with `PATH` to this file")
   ;
