@@ -1,10 +1,13 @@
+cmake_minimum_required(VERSION 3.30)
 project(DistributedIntegral)
-cmake_minimum_required(3.14)
+
+set(CXX_STANDARD 11)
+set(CXX_STANDARD_REQUIRED On)
 
 set(C_STANDARD 11)
 set(C_STANDARD_REQUIRED On)
+add_compile_options("-O0" "-g" "-Wall" "-Wextra")
 
-target_include_directories(src)
 add_subdirectory(src)
 
 add_subdirectory(app/client)
