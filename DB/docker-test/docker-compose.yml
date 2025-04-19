@@ -5,7 +5,7 @@ x-service-base: &base
   image: my-db
   user: root
   environment:
-    - CFG_PATH=/root/DB.config
+    - CFG_PATH=/root/Cluster.config
   networks:
     - netDB
 
@@ -13,8 +13,9 @@ services:
   node1:
     <<: *base
     container_name: ci_node1
-    privileged: true
     hostname: node1
+    ports:
+      - "40404:40404"
     command: |
       /bin/bash -c "
         set -ex
@@ -85,7 +86,7 @@ services:
       /bin/bash -c "
         set -ex
 
-        sleep 1
+        sleep inf
       "
 
 networks:
