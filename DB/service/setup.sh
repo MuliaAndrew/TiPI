@@ -2,7 +2,9 @@
 
 SELF_NAME=$1
 NODE_NAMES=(node1 node2 node3 node4 node5)
-CONFIG=/root/DB.config
+CONFIG=$CFG_PATH
+DB=/root/DB/db
+LOG=/var/log/DB.log
 
 export SELF_IP=`hostname -I`
 
@@ -18,8 +20,4 @@ for name in "${NODE_NAMES[@]}"; do
   fi
 done
 
-cat $CONFIG
-
-ls /root
-
-/root/DBserver --addr $SELF_IP --config $CONFIG --log /var/log/DB.log 
+/root/DBserver --addr $SELF_IP --config $CONFIG --log $LOG --db $DB

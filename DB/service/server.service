@@ -1,8 +1,0 @@
-[Unit]
-Description=DB
-
-[Service]
-ExecStart=/root/DBserver --addr %i --config /root/DB.config --log /var/log/DB.log 
-
-[Install]
-WantedBy=multi-user.target
