@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 
 	"go.uber.org/zap"
 )
@@ -25,9 +26,11 @@ type RaftLogEntry struct {
 }
 
 type Logger struct {
+	m           *sync.Mutex
 	logger			zap.SugaredLogger
 	log_path		string
 	last_entry  RaftLogEntry
+	to_commit   []RaftLogEntry
 }
 
 func checkFileExists(filePath string) bool {
@@ -40,6 +43,8 @@ func checkFileExists(filePath string) bool {
 func InitOrRestore(path string) (*Logger, error) {
 	var l = new(Logger)
 	l.log_path = path
+	l.m = &sync.Mutex{}
+	l.to_commit = make([]RaftLogEntry, 0, 100) // buffer for 100 uncommited changes
 
 	if checkFileExists(path) {
 		f, err := os.Open(path)
@@ -147,20 +152,23 @@ func InitOrRestore(path string) (*Logger, error) {
 // append new log massage to the top of log.
 // it call logger.Sync() at the end, so user may not call it
 func (l* Logger) LogOp(msg RaftLogEntry) {
-	l.last_entry = msg
-	l.logger.Infow(
-		msg.Op,
-		"index", msg.Ind,
-		"term", msg.Term,
-		"prev_index", msg.PrevInd,
-		"prev_term", msg.PrevTerm,
-	)
-	l.Sync()
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.to_commit = append(l.to_commit, msg)
 }
 
 // msgs must be given in the same order as on master
 func (l* Logger) LogOps(msgs []RaftLogEntry) {
-	for _, m := range msgs {
+	l.m.Lock()
+	defer l.m.Unlock()
+	l.to_commit = append(l.to_commit, msgs...)
+}
+
+// applied uncommited logs
+func (l* Logger) LogCommit() {
+	l.m.Lock()
+	defer l.m.Unlock()
+	for _, m := range l.to_commit {
 		l.logger.Infow(
 			m.Op,
 			"index", m.Ind,
@@ -169,22 +177,22 @@ func (l* Logger) LogOps(msgs []RaftLogEntry) {
 			"prev_term", m.PrevTerm,
 		)
 	}
-	l.last_entry = msgs[len(msgs) - 1]
-	l.Sync()
-}
-
-func (l* Logger) Sync() {
-	l.logger.Sync()
+	l.last_entry = l.to_commit[len(l.to_commit) - 1]
+	l.to_commit = make([]RaftLogEntry, 0, 100) // flush buffer
 }
 
 // Return copy of the last RaftLogEntry currently existing in log
 // If no entries was not logged yet, returned default RaftLogEntry
 func (l* Logger) LastOp() RaftLogEntry {
+	l.m.Lock()
+	defer l.m.Unlock()
 	return l.last_entry
 }
 
 // Find RaftLogEntry in Raft log and return its position, if didnt found, return last entry
 func (l* Logger) FindOp(target RaftLogEntry) (uint64, error) {
+	l.m.Lock()
+	defer l.m.Unlock()
 	f, err := os.Open(l.log_path)
 	if err != nil {
 		return 0, err
