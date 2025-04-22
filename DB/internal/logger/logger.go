@@ -1,4 +1,4 @@
-package log
+package logger
 
 import (
 	"bufio"
@@ -17,11 +17,11 @@ var (
 )
 
 type RaftLogEntry struct {
-	Op 				string
-	Term			uint64
-	Ind 			uint64
-	PrevInd		uint64
-	PrevTerm	uint64
+	Op 				string   `json:"operation"`
+	Term			uint64   `json:"term"` 
+	Ind 			uint64   `json:"index"`
+	PrevInd		uint64   `json:"prev_index"`
+	PrevTerm	uint64   `json:"prev_term"`
 }
 
 type Logger struct {
@@ -50,62 +50,67 @@ func InitOrRestore(path string) (*Logger, error) {
 		defer f.Close()
 
 		f_scanner := bufio.NewScanner(f)
-		f_scanner.Scan()
-		top_log_str := f_scanner.Text()
-		top_log := []byte(top_log_str)
-
-		m := make(map[string]any)
-		if err := json.Unmarshal(top_log, &m); err != nil {
-			return nil, err
-		}
-
-		op, ok := m["op"].(string)
-		if ok {
-			l.last_entry.Op = op
+		if f_scanner.Scan() == false {
+			l.last_entry.Ind = 0
+			l.last_entry.Op = ""
+			l.last_entry.Term = 0
 		} else {
-			return nil, &json.UnmarshalTypeError{
-				Value: "op",
-				Type: reflect.TypeFor[string](),
+			top_log_str := f_scanner.Text()
+			top_log := []byte(top_log_str)
+
+			m := make(map[string]any)
+			if err := json.Unmarshal(top_log, &m); err != nil {
+				return nil, err
 			}
-		}
 
-		term, ok := m["term"].(string)
-		if ok == true {
-			l.last_entry.Term, err = strconv.ParseUint(term, 10, 64)
-		} else {
-			return nil, &json.UnmarshalTypeError{
-				Value: "term",
-				Type: reflect.TypeFor[uint64](),
+			op, ok := m["op"].(string)
+			if ok {
+				l.last_entry.Op = op
+			} else {
+				return nil, &json.UnmarshalTypeError{
+					Value: "op",
+					Type: reflect.TypeFor[string](),
+				}
 			}
-		}
 
-		ind, ok := m["index"].(string)
-		if ok == true {
-			l.last_entry.Ind, err = strconv.ParseUint(ind, 10, 64)
-		} else {
-			return nil, &json.UnmarshalTypeError{
-				Value: "index",
-				Type: reflect.TypeFor[uint64](),
+			term, ok := m["term"].(string)
+			if ok == true {
+				l.last_entry.Term, err = strconv.ParseUint(term, 10, 64)
+			} else {
+				return nil, &json.UnmarshalTypeError{
+					Value: "term",
+					Type: reflect.TypeFor[uint64](),
+				}
 			}
-		}
 
-		prev_term, ok := m["prev_term"].(string)
-		if ok == true {
-			l.last_entry.PrevTerm, err = strconv.ParseUint(prev_term, 10, 64)
-		} else {
-			return nil, &json.UnmarshalTypeError{
-				Value: "prev_term",
-				Type: reflect.TypeFor[uint64](),
+			ind, ok := m["index"].(string)
+			if ok == true {
+				l.last_entry.Ind, err = strconv.ParseUint(ind, 10, 64)
+			} else {
+				return nil, &json.UnmarshalTypeError{
+					Value: "index",
+					Type: reflect.TypeFor[uint64](),
+				}
 			}
-		}
 
-		prev_ind, ok := m["prev_index"].(string)
-		if ok == true {
-			l.last_entry.PrevInd, err = strconv.ParseUint(prev_ind, 10, 64)
-		} else {
-			return nil, &json.UnmarshalTypeError{
-				Value: "prev_index",
-				Type: reflect.TypeFor[uint64](),
+			prev_term, ok := m["prev_term"].(string)
+			if ok == true {
+				l.last_entry.PrevTerm, err = strconv.ParseUint(prev_term, 10, 64)
+			} else {
+				return nil, &json.UnmarshalTypeError{
+					Value: "prev_term",
+					Type: reflect.TypeFor[uint64](),
+				}
+			}
+
+			prev_ind, ok := m["prev_index"].(string)
+			if ok == true {
+				l.last_entry.PrevInd, err = strconv.ParseUint(prev_ind, 10, 64)
+			} else {
+				return nil, &json.UnmarshalTypeError{
+					Value: "prev_index",
+					Type: reflect.TypeFor[uint64](),
+				}
 			}
 		}
 	} else {
@@ -172,7 +177,7 @@ func (l* Logger) Sync() {
 	l.logger.Sync()
 }
 
-// Return copy to the last RaftLogEntry currently existing in log
+// Return copy of the last RaftLogEntry currently existing in log
 // If no entries was not logged yet, returned default RaftLogEntry
 func (l* Logger) LastOp() RaftLogEntry {
 	return l.last_entry
