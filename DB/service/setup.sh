@@ -20,4 +20,11 @@ for name in "${NODE_NAMES[@]}"; do
   fi
 done
 
+if [[ "x$DELAY_MS" == "x" ]]; then
+  DELAY_MS=200
+fi
+
+## adding DELAY_MS ms latency between any nodes
+sudo tc qdisc add dev eth0 root netem delay ${DELAY_MS}ms
+
 /root/DBserver --addr $SELF_IP --config $CONFIG --log $LOG --db $DB

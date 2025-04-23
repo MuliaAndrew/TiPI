@@ -1,8 +1,6 @@
 CONTAINERS=(ci_node1 ci_node2 ci_node3 ci_node4 ci_node5)
 
 do_exit() {
-  docker logs ci_tester &> docker-test/ci_tester.log || true
-
   docker stop "${CONTAINERS[@]}"
   for ct in "${CONTAINERS[@]}"; do 
     docker logs $ct &> docker-test/${ct}.log || true
@@ -25,3 +23,4 @@ docker network inspect docker-test_netDB --format="{{range .Containers}}{{printl
 echo "======================="
 
 docker wait ci_tester || echo $?
+docker logs ci_tester &> docker-test/ci_tester.log || true
