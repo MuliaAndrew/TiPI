@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -17,8 +18,20 @@ var (
 	LOG_PATH = "/tmp/BDservice.log"
 )
 
+type Opertn = string 
+const (
+	OP_CREATE Opertn = "create"
+	OP_UPDATE Opertn = "update"
+	OP_READ   Opertn = "read"
+	OP_DELETE Opertn = "delete"
+	OP_CAS    Opertn = "CAS"
+)
+
 type RaftLogEntry struct {
-	Op 				string   `json:"operation"`
+	Op 				Opertn   `json:"operation"`
+	Operand   string   `json:"operand"`
+	Value1    string   `json:"value1"`
+	Value2    string   `json:"value2"` // for CAS
 	Term			uint64   `json:"term"` 
 	Ind 			uint64   `json:"index"`
 	PrevInd		uint64   `json:"prev_index"`
@@ -66,16 +79,6 @@ func InitOrRestore(path string) (*Logger, error) {
 			m := make(map[string]any)
 			if err := json.Unmarshal(top_log, &m); err != nil {
 				return nil, err
-			}
-
-			op, ok := m["op"].(string)
-			if ok {
-				l.last_entry.Op = op
-			} else {
-				return nil, &json.UnmarshalTypeError{
-					Value: "op",
-					Type: reflect.TypeFor[string](),
-				}
 			}
 
 			term, ok := m["term"].(string)
@@ -149,11 +152,21 @@ func InitOrRestore(path string) (*Logger, error) {
 	return l, nil
 }
 
-// append new log massage to the top of log.
-// it call logger.Sync() at the end, so user may not call it
+// append new uncommited log massage to the top uncommited log lost.
+// Op Operand Value1 [Value2] Term must be specified, the rest
+// will be setted automatically
 func (l* Logger) LogOp(msg RaftLogEntry) {
 	l.m.Lock()
 	defer l.m.Unlock()
+	if l.to_commit != nil && len(l.to_commit) > 0 {
+		msg.Ind = l.to_commit[len(l.to_commit) - 1].Ind + 1
+		msg.PrevInd = msg.Ind - 1
+		msg.PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
+	} else {
+		msg.Ind = l.last_entry.Ind + 1
+		msg.PrevInd = msg.Ind - 1
+		msg.PrevTerm = l.last_entry.Term
+	}
 	l.to_commit = append(l.to_commit, msg)
 }
 
@@ -161,16 +174,37 @@ func (l* Logger) LogOp(msg RaftLogEntry) {
 func (l* Logger) LogOps(msgs []RaftLogEntry) {
 	l.m.Lock()
 	defer l.m.Unlock()
+	if msgs == nil {
+		return
+	}
+	if l.to_commit != nil && len(l.to_commit) > 0 {
+		msgs[0].Ind = l.to_commit[len(l.to_commit) - 1].Ind + 1
+		msgs[0].PrevInd = msgs[0].Ind - 1
+		msgs[0].PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
+	} else {
+		msgs[0].Ind = l.last_entry.Ind + 1
+		msgs[0].PrevInd = msgs[0].Ind - 1
+		msgs[0].PrevTerm = l.last_entry.Term
+	}
+	for i := range msgs {
+		if i == 0 { continue }
+		msgs[i].Ind = l.to_commit[len(l.to_commit) - 1].Ind + 1
+		msgs[i].PrevInd = msgs[i].Ind - 1
+		msgs[i].PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
+	}
 	l.to_commit = append(l.to_commit, msgs...)
 }
 
-// applied uncommited logs
+// apply uncommited log list to logger
 func (l* Logger) LogCommit() {
 	l.m.Lock()
 	defer l.m.Unlock()
 	for _, m := range l.to_commit {
 		l.logger.Infow(
 			m.Op,
+			"operand", m.Operand,
+			"value1", m.Value1,
+			"value2", m.Value2,
 			"index", m.Ind,
 			"term", m.Term,
 			"prev_index", m.PrevInd,
@@ -186,7 +220,32 @@ func (l* Logger) LogCommit() {
 func (l* Logger) LastOp() RaftLogEntry {
 	l.m.Lock()
 	defer l.m.Unlock()
-	return l.last_entry
+	last := l.last_entry
+	return last
+}
+
+func (l *Logger) LenCommited() uint64 {
+	l.m.Lock()
+	defer l.m.Unlock()
+	lenght := l.last_entry.Ind
+	if l.last_entry.Op != "" { 
+		lenght += 1
+	}
+	return lenght
+}
+
+// LenCommited() + len(to_commit)
+func (l* Logger) LenUncommited() uint64 {
+	l.m.Lock()
+	defer l.m.Unlock()
+	lenght := l.last_entry.Ind
+	if l.last_entry.Op != "" { 
+		lenght += 1
+	}
+	if l.to_commit != nil {
+		lenght += uint64(len(l.to_commit))
+	}
+	return lenght
 }
 
 // Find RaftLogEntry in Raft log and return its position, if didnt found, return last entry
@@ -203,12 +262,12 @@ func (l* Logger) FindOp(target RaftLogEntry) (uint64, error) {
 	var nr uint64 = 0
 	for f_scanner.Scan() {
 		line_str := f_scanner.Text()
-		var e RaftLogEntry
-		if err := json.Unmarshal([]byte(line_str), &e); err != nil {
+		var entry RaftLogEntry
+		if err := json.Unmarshal([]byte(line_str), &entry); err != nil {
 			return 0, err
 		}
 		
-		if target == e { return nr, nil }
+		if target == entry { return nr, nil }
 		
 		nr++
 	}
@@ -216,4 +275,43 @@ func (l* Logger) FindOp(target RaftLogEntry) (uint64, error) {
 	return 0, nil
 }
 
-// func (l* Logger) EraseUntil()
+// return array of commited RaftLogEntry log[index:len(log)-1], if index>=len(log)-1 return nil
+// expensive operation
+func (l* Logger) Ops(index uint64) []RaftLogEntry {
+	l.m.Lock()
+	defer l.m.Unlock()
+	
+	if index >= l.last_entry.Ind {
+		return nil
+	}
+	
+	f, err := os.Open(l.log_path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	res := make([]RaftLogEntry, 0)
+	f_scanner := bufio.NewScanner(f)
+	for f_scanner.Scan() {
+		line_str := f_scanner.Text()
+		var entry RaftLogEntry
+		if err := json.Unmarshal([]byte(line_str), &entry); err != nil {
+			return nil
+		}
+
+		if index >= entry.Ind {
+			res = append(res, entry)
+		}
+	}
+	slices.Reverse(res)
+	return res
+}
+
+func (l* Logger) UncommitedOps() []RaftLogEntry {
+	l.m.Lock()
+	defer l.m.Unlock()
+	res := make([]RaftLogEntry, len(l.to_commit))
+	copy(res, l.to_commit)
+	return res
+}
