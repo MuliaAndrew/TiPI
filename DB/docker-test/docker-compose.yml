@@ -6,7 +6,7 @@ x-service-base: &base
   user: root
   environment:
     - CFG_PATH=/root/Cluster.config
-    - DELAY_MS=0
+    - DELAY_MS=10
   networks:
     - netDB
 
@@ -85,6 +85,8 @@ services:
     <<: *base 
     container_name: ci_tester
     hostname: tester
+    environment:
+      - TEST=${TEST}
     depends_on:
       - node1
       - node2
@@ -94,6 +96,8 @@ services:
     command: |
       /bin/bash -c "
         set -ex
+
+        /root/functional_test.sh
 
         sleep inf
       "

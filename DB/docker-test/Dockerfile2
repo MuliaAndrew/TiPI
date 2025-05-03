@@ -1,4 +1,4 @@
 FROM fedora:latest
 
 RUN dnf -y update 
-RUN dnf -y install go hostname dig iproute tc perf iperf
+RUN dnf -y install go hostname dig iproute tc perf iperf iptables libasan libtsan

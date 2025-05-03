@@ -3,8 +3,8 @@ FROM fedora-go:latest
 WORKDIR /DB
 COPY . .
 
-RUN go build -C ./cmd -a -o /root/DBserver
+RUN go build -C ./cmd/server -a -asan -o /root/DBserver
 
-RUN cp -r ./service/* /root/
+RUN cp -r ./tools/* /root/
 
 WORKDIR /root
