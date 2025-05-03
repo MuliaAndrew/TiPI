@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"reflect"
-	"slices"
 	"strconv"
 	"sync"
 
@@ -28,7 +27,7 @@ const (
 )
 
 type RaftLogEntry struct {
-	Op 				Opertn   `json:"operation"`
+	Op 				Opertn   `json:"op"`
 	Operand   string   `json:"operand"`
 	Value1    string   `json:"value1"`
 	Value2    string   `json:"value2"` // for CAS
@@ -163,56 +162,36 @@ func (l* Logger) LogOp(msg RaftLogEntry) {
 		msg.PrevInd = msg.Ind - 1
 		msg.PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
 	} else {
-		msg.Ind = l.last_entry.Ind + 1
-		msg.PrevInd = msg.Ind - 1
-		msg.PrevTerm = l.last_entry.Term
+		if l.last_entry.Op == "" {
+			msg.Ind = 0
+			msg.PrevInd = 0
+			msg.PrevTerm = 0
+		} else {
+			msg.Ind = l.last_entry.Ind + 1
+			msg.PrevInd = msg.Ind - 1
+			msg.PrevTerm = l.last_entry.Term
+		}
 	}
 	l.to_commit = append(l.to_commit, msg)
 }
 
-// msgs must be given in the same order as on master
-func (l* Logger) LogOps(msgs []RaftLogEntry) {
-	l.m.Lock()
-	defer l.m.Unlock()
-	if msgs == nil {
-		return
-	}
-	if l.to_commit != nil && len(l.to_commit) > 0 {
-		msgs[0].Ind = l.to_commit[len(l.to_commit) - 1].Ind + 1
-		msgs[0].PrevInd = msgs[0].Ind - 1
-		msgs[0].PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
-	} else {
-		msgs[0].Ind = l.last_entry.Ind + 1
-		msgs[0].PrevInd = msgs[0].Ind - 1
-		msgs[0].PrevTerm = l.last_entry.Term
-	}
-	for i := range msgs {
-		if i == 0 { continue }
-		msgs[i].Ind = l.to_commit[len(l.to_commit) - 1].Ind + 1
-		msgs[i].PrevInd = msgs[i].Ind - 1
-		msgs[i].PrevTerm = l.to_commit[len(l.to_commit) - 1].Term
-	}
-	l.to_commit = append(l.to_commit, msgs...)
-}
-
-// apply uncommited log list to logger
 func (l* Logger) LogCommit() {
 	l.m.Lock()
 	defer l.m.Unlock()
-	for _, m := range l.to_commit {
-		l.logger.Infow(
-			m.Op,
-			"operand", m.Operand,
-			"value1", m.Value1,
-			"value2", m.Value2,
-			"index", m.Ind,
-			"term", m.Term,
-			"prev_index", m.PrevInd,
-			"prev_term", m.PrevTerm,
-		)
-	}
-	l.last_entry = l.to_commit[len(l.to_commit) - 1]
-	l.to_commit = make([]RaftLogEntry, 0, 100) // flush buffer
+	if len(l.to_commit) == 0 { return }
+	m := l.to_commit[0]
+	l.to_commit = l.to_commit[1:]
+  l.logger.Infow(
+		m.Op,
+		"operand", m.Operand,
+		"value1", m.Value1,
+		"value2", m.Value2,
+		"index", m.Ind,
+		"term", m.Term,
+		"prev_index", m.PrevInd,
+		"prev_term", m.PrevTerm,
+	)
+	l.last_entry = m
 }
 
 // Return copy of the last RaftLogEntry currently existing in log
@@ -232,6 +211,14 @@ func (l *Logger) LenCommited() uint64 {
 		lenght += 1
 	}
 	return lenght
+}
+
+func (l *Logger) FlushUncommited() {
+	l.m.Lock()
+	defer l.m.Unlock()
+	if len(l.to_commit) > 0 {
+		l.to_commit = make([]RaftLogEntry, 0)
+	}
 }
 
 // LenCommited() + len(to_commit)
@@ -281,7 +268,7 @@ func (l* Logger) Ops(index uint64) []RaftLogEntry {
 	l.m.Lock()
 	defer l.m.Unlock()
 	
-	if index >= l.last_entry.Ind {
+	if index > l.last_entry.Ind {
 		return nil
 	}
 	
@@ -300,11 +287,8 @@ func (l* Logger) Ops(index uint64) []RaftLogEntry {
 			return nil
 		}
 
-		if index >= entry.Ind {
-			res = append(res, entry)
-		}
+		res = append(res, entry)
 	}
-	slices.Reverse(res)
 	return res
 }
 
