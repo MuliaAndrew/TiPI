@@ -1,0 +1,11 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="../logger/logger.vcxproj" Id="02e49865-e238-422c-ba1b-2c7b2a2811fc" />
+  <Project Path="../SSHClient/SSHClient.vcxproj" Id="5b4ad226-8bd1-41d4-b192-9e722feb206b" />
+  <Project Path="../SSHServerServiceConfiguration/SSHServerServiceConfiguration.vcxproj" Id="bd652745-bbc6-4423-ba52-eb5d7fcd85d4" />
+  <Project Path="../SSHServerServiceControl/SSHServerServiceControl.vcxproj" Id="40aaa7f7-bcc8-45b4-a2bd-1b3671a870d4" />
+  <Project Path="SSHServer.vcxproj" Id="3a0d6832-7572-4ff1-9083-22e4b0ad2214" />
+</Solution>
