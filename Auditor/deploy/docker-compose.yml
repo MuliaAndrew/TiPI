@@ -1,0 +1,240 @@
+version: '3.8'
+
+x-environment: &patroni_env
+  PGPASSWORD: postgres123
+  REPLICATION_PASSWORD: rep_pass
+  PATRONI_SCOPE: ha_cluster
+  # PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
+  # PATRONI_RESTAPI_CONNECT_ADDRESS: 127.0.0.1:8008
+  # PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
+  # PATRONI_POSTGRESQL_CONNECT_ADDRESS: 127.0.0.1:5432
+  # PATRONI_POSTGRESQL_AUTHENTICATION_SUPERUSER_USERNAME: postgres
+  # PATRONI_POSTGRESQL_AUTHENTICATION_SUPERUSER_PASSWORD: password123
+  # PATRONI_POSTGRESQL_AUTHENTICATION_REPLICATION_USERNAME: replicator
+  # PATRONI_POSTGRESQL_AUTHENTICATION_REPLICATION_PASSWORD: rep_pass
+  # PATRONI_ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
+  PATRONI_POSTGRESQL_CREATE_REPLICATION_SLOTS: "true"
+  PATRONI_POSTGRESQL_WAL_LEVEL: logical
+  PATRONI_POSTGRESQL_CONFIG_DIR: /configs/pgconf/
+  
+x-etcd-healthcheck: &etcd_healthcheck
+  healthcheck:
+    test: ["CMD-SHELL", "curl -f http://localhost:2379/health || exit 1"]
+    interval: 10s
+    timeout: 5s
+    retries: 20
+    start_period: 10s
+
+networks:
+  patroni_net:
+    driver: bridge
+
+volumes:
+  pg_data_1:
+  pg_data_2:
+  pg_data_3:
+  etcd_data_1:
+  etcd_data_2:
+  etcd_data_3:
+  pgadmin_data: 
+
+services:
+  etcd1: &etcd1
+    <<: *etcd_healthcheck
+    image: etcd:latest
+    build:
+      dockerfile: ./etcd.Dockerfile
+      network: host
+      context: .
+      args:
+        IMAGE: bitnamilegacy/etcd:3.6.4-debian-12-r4
+    container_name: etcd1
+    environment: &etcd1_env
+      ETCD_NAME: etcd1
+      ETCD_INITIAL_CLUSTER_TOKEN: my-etcd-cluster
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+    volumes:
+      - etcd_data_1:/bitnami/etcd
+    networks:
+      - patroni_net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 100Mb
+
+  etcd2:
+    <<: *etcd1
+    container_name: etcd2
+    environment:
+      <<: *etcd1_env
+      ETCD_NAME: etcd2
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+    volumes:
+      - etcd_data_2:/bitnami/etcd
+    ports:
+      - 2379:2379
+
+  etcd3:
+    <<: *etcd1 
+    container_name: etcd3
+    environment:
+      <<: *etcd1_env
+      ETCD_NAME: etcd3
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+    volumes:
+      - etcd_data_3:/bitnami/etcd
+
+  pg1: &pg1
+    image: patroni 
+    build:
+      network: host
+      context: .
+      dockerfile: ./patroni.Dockerfile
+      args:
+        IMAGE: ghcr.io/batonogov/patroni-docker:v4.0.4-pg17.3
+    hostname: pg1
+    container_name: pg1
+    user: 999:999
+    environment:
+      <<: *patroni_env
+      PATRONI_NAME: pg1
+      HOSTNAME: pg1
+    volumes:
+      - pg_data_1:/var/lib/postgresql/data
+      # - ./configs/postgresql.conf:/config/postgresql.conf:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      # - ./configs/patroni.yml:/config/patroni.yml:ro
+    networks:
+      - patroni_net
+    entrypoint: ['/bin/bash', '/entrypoint.sh']
+    depends_on:
+      etcd1:
+        condition: service_healthy
+      etcd2:
+        condition: service_healthy
+      etcd3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/master"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: 2
+          memory: 6GB
+
+  pg2:
+    <<: *pg1
+    hostname: pg2
+    container_name: pg2
+    environment:
+      <<: *patroni_env
+      PATRONI_NAME: pg2
+      HOSTNAME: pg2
+    volumes:
+      - pg_data_2:/var/lib/postgresql/data
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      # - ./configs/postgresql.conf:/config/postgresql.conf:ro
+      # - ./configs/patroni.yml:/config/patroni.yml:ro
+    
+  pg3:
+    <<: *pg1
+    hostname: pg3
+    container_name: pg3
+    environment:
+      <<: *patroni_env
+      PATRONI_NAME: pg3
+      HOSTNAME: pg3
+    volumes:
+      - pg_data_3:/var/lib/postgresql/data
+      - ./entrypoint.sh:/entrypoint.sh:ro
+      # - ./configs/postgresql.conf:/config/postgresql.conf:ro
+      # - ./configs/patroni.yml:/config/patroni.yml:ro
+
+  haproxy:
+    image: haproxy:latest
+    container_name: haproxy
+    ports:
+      - "5432:5432" # Primary RW access
+      - "5433:5433" # Replica RO access
+      - "8008:8008" # Patroni API monitoring/management
+      - "8080:8080"
+    command: haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+    volumes:
+      - ./configs/HAProxy.cfg:/usr/local/etc/haproxy/haproxy.cfg/:ro
+    networks:
+      - patroni_net
+    depends_on:
+      - pg1
+      - pg2
+      - pg3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/master"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  pg_exporter_1: &pg_exporter_1
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: pg_exporter_1
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:password123@pg1:5432/auditdb?sslmode=disable"
+    ports:
+      - "9187:9187" # Exporter for pg1 on port 9187
+    networks:
+      - patroni_net
+    depends_on:
+      - pg1
+    deploy:
+      resources:
+        limits:
+          cpus: '0.4'
+          memory: 200Mb
+
+  pg_exporter_2:
+    <<: *pg_exporter_1
+    container_name: pg_exporter_2
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:password123@pg2:5432/auditdb?sslmode=disable"
+    ports:
+      - "9188:9187" # Exporter for pg2 on port 9188
+    depends_on:
+      - pg2
+
+  pg_exporter_3:
+    <<: *pg_exporter_1
+    container_name: pg_exporter_3
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:password123@pg3:5432/auditdb?sslmode=disable"
+    ports:
+      - "9189:9187" # Exporter for pg3 on port 9189
+    depends_on:
+      - pg3
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin@local.com
+      PGADMIN_DEFAULT_PASSWORD: adminpassword
+    ports:
+      - "5050:80" # Access pgAdmin via http://localhost:5050
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - patroni_net
+    depends_on:
+      - haproxy

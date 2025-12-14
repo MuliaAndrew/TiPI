@@ -1,4 +1,4 @@
-.PHONY: build freeze
+.PHONY: build freeze install
 
 build:
 	$(MAKE) build-py

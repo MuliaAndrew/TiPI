@@ -1,3 +1,4 @@
 *.log
 generator/__pycache__
 generator/testserver
+auditord/auditord
