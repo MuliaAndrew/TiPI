@@ -1,73 +1,127 @@
 package main
 
 import (
-	"database/sql"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"fmt"
+	"context"
+	"flag"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/MuliaAndrew/TiPI/Auditor/auditord/internal/api"
+	"github.com/MuliaAndrew/TiPI/Auditor/auditord/internal/config"
+	"github.com/MuliaAndrew/TiPI/Auditor/auditord/internal/metrics"
+	"github.com/MuliaAndrew/TiPI/Auditor/auditord/internal/storage"
+	"github.com/MuliaAndrew/TiPI/Auditor/auditord/internal/service"
 )
 
-var (
-	db_name    string
-	db_user    string
-	db_pass    string
-	db_ssl     string
-
-	log_level  int
-)
-
-func parse_args() {
-	db_name = os.Getenv("DB_NAME")
-	db_user = os.Getenv("DB_USER")
-	db_pass = os.Getenv("DB_PASS")
-	db_ssl  = os.Getenv("DB_SSL")
-	
-	if db_name == "" {
-		slog.Error("DB_NAME env variable must be set")
-	}
-	if db_user == "" {
-		slog.Error("DB_USER env variable must be set")
-	}
-	if db_pass == "" {
-		slog.Error("DB_PASS env variable must be set")
-	}
-	if db_ssl == "" { 
-		db_ssl = "disable"
-	}
-}
+var Version = "dev"
 
 func main() {
-	
-	parse_args()
-	slog.SetLogLoggerLevel(slog.Level(log_level))
+	env := flag.String("env", "dev", "Environment (dev, test, prod)")
+	configPath := flag.String("config", "", "Path to config file (overrides -env)")
+	flag.Parse()
 
-	connStr := fmt.Sprintf("user=%s password=%s dbname=%s sslmode=%s host=localhost port=5432", db_user, db_pass, db_name, db_ssl)
-	db, err := sql.Open("pgx", connStr)
+	metrics.Init(Version)
+
+	var cfgPath string
+	if *configPath != "" {
+		cfgPath = *configPath
+	} else {
+		cfgPath = "config/" + *env + ".yaml"
+	}
+
+	cfg := config.MustLoad(cfgPath)
+
+	var logger *slog.Logger
+	if cfg.Logging.Format == "json" {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: parseLogLevel(cfg.Logging.Level),
+		}))
+	} else {
+		logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: parseLogLevel(cfg.Logging.Level),
+		}))
+	}
+
+	logger.Info("starting audit service",
+		"version", Version,
+		"env", *env,
+		"config", cfgPath,
+		"host", cfg.Server.Host,
+		"port", cfg.Server.Port,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dbCtx, dbCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer dbCancel()
+
+	pool, err := storage.NewPool(dbCtx, cfg.Database)
 	if err != nil {
-		slog.Error("Cant connect to database", "err", err.Error())
+		logger.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer pool.Close()
 
-	rows, err := db.Query("SELECT city, tm FROM test")
-	if err != nil {
-		slog.Error("Cant query", "err", err.Error())
-		os.Exit(1)
+	logger.Info("connected to database",
+		"host", cfg.Database.Host,
+		"port", cfg.Database.Port,
+		"name", cfg.Database.Name,
+	)
+
+	eventRepo := storage.WrapPool(pool, config.RepositoryConfig{})
+	eventService := service.NewEventService(eventRepo)
+
+	router := api.NewRouter(eventService, logger)
+
+	server := &http.Server{
+		Addr:         cfg.Server.Address(),
+		Handler:      router,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
 	}
-	defer rows.Close()
 
-	var data struct {
-		city string
-		tm   string
-	}
-
-	for rows.Next() {
-		err = rows.Scan(&data.city, &data.tm)
-		if err != nil {
-			slog.Error("Cant scan for rows", "err", err.Error())
-			break
+	go func() {
+		logger.Info("server listening", "address", cfg.Server.Address())
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", "error", err)
+			os.Exit(1)
 		}
-		fmt.Printf("city: %s, timestamp: %s\n", data.city, data.tm)
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("shutting down server...")
+
+	cancel() // Stop Kafka consumer
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Error("server shutdown error", "error", err)
+	}
+	
+	logger.Info("server stopped")
+}
+
+func parseLogLevel(level string) slog.Level {
+	switch level {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
 	}
 }

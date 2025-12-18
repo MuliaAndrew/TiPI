@@ -1,0 +1,19 @@
+server:
+  host: 0.0.0.0
+  port: 7777
+  read_timeout: 10s
+  write_timeout: 5s
+
+database:
+  host: haproxy
+  port: 5432
+  name: auditordb
+  user: postgres
+  password: postgres123
+  sslmode: disable
+  max_connections: 25
+  min_connections: 5
+
+logging:
+  level: info
+  format: json

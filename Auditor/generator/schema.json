@@ -10,7 +10,7 @@
     },
     "user": {
       "type": "string",
-      "title": "user_id_001",
+      "format": "email",
       "description": "Identifier of the user."
     },
     "component": {
@@ -26,13 +26,13 @@
     "session_id": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 18446744073709551615,
+      "maximum": 1844674407370955161,
       "description": "Unique session identifier."
     },
     "req_id": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 18446744073709551615,
+      "maximum": 1844674407370955161,
       "description": "Unique request identifier."
     },
     "res": {

@@ -4,15 +4,6 @@ x-environment: &patroni_env
   PGPASSWORD: postgres123
   REPLICATION_PASSWORD: rep_pass
   PATRONI_SCOPE: ha_cluster
-  # PATRONI_RESTAPI_LISTEN: 0.0.0.0:8008
-  # PATRONI_RESTAPI_CONNECT_ADDRESS: 127.0.0.1:8008
-  # PATRONI_POSTGRESQL_LISTEN: 0.0.0.0:5432
-  # PATRONI_POSTGRESQL_CONNECT_ADDRESS: 127.0.0.1:5432
-  # PATRONI_POSTGRESQL_AUTHENTICATION_SUPERUSER_USERNAME: postgres
-  # PATRONI_POSTGRESQL_AUTHENTICATION_SUPERUSER_PASSWORD: password123
-  # PATRONI_POSTGRESQL_AUTHENTICATION_REPLICATION_USERNAME: replicator
-  # PATRONI_POSTGRESQL_AUTHENTICATION_REPLICATION_PASSWORD: rep_pass
-  # PATRONI_ETCD3_HOSTS: etcd1:2379,etcd2:2379,etcd3:2379
   PATRONI_POSTGRESQL_CREATE_REPLICATION_SLOTS: "true"
   PATRONI_POSTGRESQL_WAL_LEVEL: logical
   PATRONI_POSTGRESQL_CONFIG_DIR: /configs/pgconf/
@@ -112,6 +103,7 @@ services:
       - pg_data_1:/var/lib/postgresql/data
       # - ./configs/postgresql.conf:/config/postgresql.conf:ro
       - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./patroni_post_init.sh:/patroni_post_init.sh:ro
       # - ./configs/patroni.yml:/config/patroni.yml:ro
     networks:
       - patroni_net
@@ -146,6 +138,7 @@ services:
     volumes:
       - pg_data_2:/var/lib/postgresql/data
       - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./patroni_post_init.sh:/patroni_post_init.sh:ro
       # - ./configs/postgresql.conf:/config/postgresql.conf:ro
       # - ./configs/patroni.yml:/config/patroni.yml:ro
     
@@ -160,17 +153,51 @@ services:
     volumes:
       - pg_data_3:/var/lib/postgresql/data
       - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./patroni_post_init.sh:/patroni_post_init.sh:ro
       # - ./configs/postgresql.conf:/config/postgresql.conf:ro
       # - ./configs/patroni.yml:/config/patroni.yml:ro
+
+  auditor1: &auditor
+    image: auditor
+    container_name: auditor1
+    hostname: auditor1
+    command: deploy/auditor.sh
+    networks:
+      - patroni_net
+    depends_on:
+      - pg1
+      - pg2
+      - pg3
+  
+  auditor2:
+    <<: *auditor
+    container_name: auditor2
+    hostname: auditor2
+
+  auditor3:
+    <<: *auditor
+    container_name: auditor3
+    hostname: auditor3
+
+  auditor4:
+    <<: *auditor
+    container_name: auditor4
+    hostname: auditor4
+
+  auditor5:
+    <<: *auditor
+    container_name: auditor5
+    hostname: auditor5
 
   haproxy:
     image: haproxy:latest
     container_name: haproxy
     ports:
-      - "5432:5432" # Primary RW access
-      - "5433:5433" # Replica RO access
-      - "8008:8008" # Patroni API monitoring/management
-      - "8080:8080"
+      # - "5432:5432" # Primary RW access
+      # - "5433:5433" # Replica RO access
+      # - "8008:8008" # Patroni API monitoring/management
+      - "8080:8080" # haproxy metrics
+      - "7777:7777" # Auditor
     command: haproxy -f /usr/local/etc/haproxy/haproxy.cfg
     volumes:
       - ./configs/HAProxy.cfg:/usr/local/etc/haproxy/haproxy.cfg/:ro

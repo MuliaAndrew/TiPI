@@ -1,3 +1,4 @@
+# must be built from deploy dir
 ARG IMAGE
 FROM $IMAGE
 

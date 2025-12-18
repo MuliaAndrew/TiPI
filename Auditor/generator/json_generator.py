@@ -38,13 +38,13 @@ def _mock_datetime() -> str:
   second = random.randint(0, 59)
   
   # Format: YYYY-MM-DDThh:mm:ss 
-  return f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+  return f"{year}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}"
 
 def _mock_datetime_expanded() -> str:
   _datetime = _mock_datetime()
   micros = random.randint(0, 99999)
   # Format: YYYY-MM-DDThh:mm:ss:micros
-  return f"{_datetime}:{micros}"
+  return f"{_datetime}:{micros:05d}"
 
 def extract_schema_from_json_file(path: str) -> Dict[str, Any]:
   """Reads a JSON schema from a file path and returns it as a dictionary."""

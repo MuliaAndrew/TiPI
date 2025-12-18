@@ -17,6 +17,8 @@ bootstrap:
   - encoding: UTF8
   - data-checksums
 
+  post_init: /patroni_post_init.sh
+
 
 etcd3:
   hosts:
